@@ -1,0 +1,17 @@
+
+# Ignore Python bytecode and cache files
+__pycache__/
+*.py[cod]
+
+# Ignore Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore Visual Studio files
+.vs/
+
+# Optional: Ignore virtual environments
+venv/
+env/
+
+# Optional: Ignore macOS system files
+.DS_Store
