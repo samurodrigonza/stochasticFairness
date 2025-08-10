@@ -1,0 +1,11 @@
+scarce_0.75_utility_type_power_num_scenarios_150_equal_probabilities_True_nat_log_linear_pieces_length_1
+OF_EEVS with population mean: 121.57491010909611
+
+OF_EEVS with sample mean: 121.58303159086249
+OF_WS: 121.88940164709723
+OF_DE: 121.85430177505052
+Expectation of the Expected Value Solution (EEVS) with population mean: 121.57491010909611
+Expectation of the Expected Value Solution (EEVS) with sample mean: 121.58303159086249
+Expected Value of Perfect Information (EVPI): 0.03509987204671461
+Value of the Stochastic Solution (VSS) with population mean: 0.2793916659544067
+Value of the Stochastic Solution (VSS) with sample mean: 0.27127018418802606
