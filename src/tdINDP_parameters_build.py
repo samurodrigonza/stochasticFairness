@@ -798,11 +798,11 @@ def find_capacities(N=N, A=A, T=T, S=S, L=L, R=R, K=K, N_star_k=N_star_k, N_k=N_
 				
 					
 		data = pd.DataFrame(data, columns = data.keys())
-		data.to_csv('pareto_of_capacities.csv')
+		data.to_csv(os.path.join(os.path.dirname(__file__), 'pareto_of_capacities.csv'))
 	else:
 		
 		# Read the CSV into a DataFrame
-		df = pd.read_csv("pareto_of_capacities.csv")
+		df = pd.read_csv(os.path.join(os.path.dirname(__file__), 'pareto_of_capacities.csv'))
 		df = df.drop(df.columns[0], axis = 1)
 		# Define the row number you want to access
 		row_number = 18  # Change this to the desired row number (0-based)

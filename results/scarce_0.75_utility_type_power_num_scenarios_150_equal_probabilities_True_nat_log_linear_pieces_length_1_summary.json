@@ -1,0 +1,16 @@
+{
+  "scarce": 0.75,
+  "utility_type": "power",
+  "num_scenarios": 150,
+  "same_probs": true,
+  "pieces_length": 1,
+  "OF_EV_alpha_mu": 120.94859852116255,
+  "OF_EV_alpha_mu_hat": 120.9135317236495,
+  "OF_EEVS_alpha_mu": 121.20223967998415,
+  "OF_EEVS_alpha_mu_hat": 121.20584272594016,
+  "OF_WS": 121.56813681906256,
+  "OF_DE": 121.27916545852634,
+  "EVPI": 0.2889713605362232,
+  "VSS_alpha_mu": 0.07692577854218996,
+  "VSS_alpha_mu_hat": 0.07332273258617761
+}
