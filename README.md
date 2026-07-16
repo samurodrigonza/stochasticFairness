@@ -34,6 +34,7 @@ old_files/      Retired notebooks / archived result sets kept for reference only
 | `compare_formulations.py` | Scoring/diffing utilities to compare Formulation A vs. B on the same instance. |
 | `run_formulation_b_pilot.py` | Pilot driver: degenerate correctness check (Stage 1) + full case study (Stage 2) for Formulation B. |
 | `jensen_gap_from_de_csv.py` | Reads an existing `results/DE_scarce_*.csv` and computes the **ex-post Jensen gap** — Formulation B's objective evaluated on Formulation A's DE solution, per scenario then averaged — with no Gurobi solve required. |
+| `benchmark_warm_start.py` | Runtime-only experiment: reruns `EEVS`/`WS` with `warm_start_sequential=True` (Gurobi MIP start from the previous scenario's solution — valid since `alpha` only affects the objective, not constraints) and writes results to `_warmstart`-suffixed files that never overwrite baseline output. See `docs/dossier.md` Section 14.3. |
 
 ### `notebooks/`
 
@@ -97,6 +98,11 @@ Formulation B pilot summaries/CSVs.
   (`src/jensen_gap_from_de_csv.py`; `docs/dossier.md` Section 12) — the
   practical stand-in for "how much would Formulation B's optimum differ,"
   without solving Formulation B's intractable MIQCP.
+- **Sequential MIP warm-start speedup** (opt-in, runtime-only, `docs/dossier.md`
+  Section 14.3): re-solving `EEVS` scenarios with a warm start from the
+  previous scenario's solution cut total solve time ~16% with identical
+  objective values; the same trick was net *slower* for `WS`, whose solves are
+  already near-instant.
 
 ## Further reading
 

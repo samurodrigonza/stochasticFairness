@@ -1,6 +1,7 @@
 """Deterministic Equivalent (DE) model: single model spanning all scenarios."""
 
 import math
+import os
 
 import numpy as np
 from gurobipy import GRB, Model, quicksum
@@ -77,7 +78,7 @@ def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
 
             for i in N_k_s[k]:
                 for omega in OMEGA:
-                    model.addConstr(quicksum(x_star[(i,j,k,l)] for j in N_k[k] if (i,j) in A_k[k]) == b[(i,k,l)] - delta_plus[(i,k,l)], name = 'supply_flow_balance_'+str((i,k,l)))
+                    model.addConstr(quicksum(x_star[(i,j,k,l)] for j in N_k[k] if (i,j) in A_k[k]) - quicksum(x_star[(j,i,k,l)] for j in N_k_s[k] if (j,i) in A_k[k]) == b[(i,k,l)] - delta_plus[(i,k,l)], name = 'supply_flow_balance_'+str((i,k,l)))
 
 
     for k in K:
@@ -141,7 +142,12 @@ def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
 
     model.update()
 
-    model.params.LogFile=results_path(f'LOG_FILE_scarce_{scarce}_utility_type_{utility_type}_num_scenarios_{len(OMEGA)}_equal_probabilities_{True}_nat_log_linear_pieces_length_{pieces_length}')
+    log_file_path = results_path(f'LOG_FILE_scarce_{scarce}_utility_type_{utility_type}_num_scenarios_{len(OMEGA)}_equal_probabilities_{True}_nat_log_linear_pieces_length_{pieces_length}')
+    if os.path.exists(log_file_path):
+        # Gurobi appends to an existing LogFile rather than overwriting it, so remove any
+        # stale log from a previous run to keep this file scoped to the current solve only.
+        os.remove(log_file_path)
+    model.params.LogFile = log_file_path
     model.optimize()
 
     if diagnostics is not None:

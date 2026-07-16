@@ -8,12 +8,24 @@ from gurobi_utils import configure_common_gurobi_params, save_results_csv, colle
 from paths import results_path
 
 
-def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, diagnostics=None):
+def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, diagnostics=None, warm_start_sequential=False):
     '''
     `diagnostics`: optional list; if provided, one `collect_solve_diagnostics(...)`
     record per Gurobi solve (the EV solve, then one per EEVS scenario) is
     appended to it in place, for audit/reproducibility reporting - see
     `run_experiments.write_solve_diagnostics_md`.
+
+    `warm_start_sequential`: runtime-only experiment, off by default (does not
+    change results). When True, each EEVS scenario solve after the first is
+    given a Gurobi MIP start built from the previous scenario's solution. This
+    is valid because EEVS fixes all first-stage decisions to the EV solution
+    and `alpha` (the only thing that varies by scenario) appears only in the
+    objective, never in a constraint -- so every EEVS scenario shares the
+    exact same second-stage feasible region, and the previous scenario's
+    optimal second-stage solution is provably feasible for the next one. Only
+    intended for a side-by-side runtime comparison against a baseline
+    (`warm_start_sequential=False`) run; output filenames get a
+    `_warmstart` suffix so they never collide with/overwrite baseline results.
 
     Expected value
 
@@ -75,7 +87,7 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
     for k in K:
         for l in L_k[k]:
             for i in N_k_s[k]:
-                model.addConstr(quicksum(x_star[(i,j,k,l)] for j in N_k[k] if (i,j) in A_k[k]) == b[(i,k,l)] - delta_plus[(i,k,l)], name = 'supply_flow_balance_'+str((i,k,l)))
+                model.addConstr(quicksum(x_star[(i,j,k,l)] for j in N_k[k] if (i,j) in A_k[k]) - quicksum(x_star[(j,i,k,l)] for j in N_k_s[k] if (j,i) in A_k[k]) == b[(i,k,l)] - delta_plus[(i,k,l)], name = 'supply_flow_balance_'+str((i,k,l)))
 
 
     for k in K:
@@ -153,6 +165,7 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
 
     x_star_EEVS = {}
     OF_omega = []
+    prev_second_stage = None  # carries the last scenario's solution for warm_start_sequential
     for omega in OMEGA:
         print(f'Expectation of the expected value, scenario {omega+1} out of {len(OMEGA)}')
 
@@ -210,7 +223,7 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
             for l in L_k[k]:
 
                 for i in N_k_s[k]:
-                    model.addConstr(quicksum(x_star[(i,j,k,l)] for j in N_k[k] if (i,j) in A_k[k]) == b[(i,k,l)] - delta_plus[(i,k,l)], name = 'supply_flow_balance_'+str((i,k,l)))
+                    model.addConstr(quicksum(x_star[(i,j,k,l)] for j in N_k[k] if (i,j) in A_k[k]) - quicksum(x_star[(j,i,k,l)] for j in N_k_s[k] if (j,i) in A_k[k]) == b[(i,k,l)] - delta_plus[(i,k,l)], name = 'supply_flow_balance_'+str((i,k,l)))
 
 
         for k in K:
@@ -308,10 +321,25 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
 
         model.update()
 
+        if warm_start_sequential and prev_second_stage is not None:
+            # First-stage (x_star, w, y, z_star, delta_plus) is already fixed by equality
+            # constraints above -- identical every scenario -- so only the free second-stage
+            # vars need a start. Same (i,k,l)/(i,j,k,l) keys as the previous scenario since
+            # only alpha (objective-only) differs between scenarios.
+            for (i,k,l) in prev_second_stage['phi']:
+                phi[(i,k,l,omega)].Start = prev_second_stage['phi'][(i,k,l)]
+                log_phi[(i,k,l,omega)].Start = prev_second_stage['log_phi'][(i,k,l)]
+                delta_minus[(i,k,l,omega)].Start = prev_second_stage['delta_minus'][(i,k,l)]
+            for (i,j,k,l) in prev_second_stage['x']:
+                x[(i,j,k,l,omega)].Start = prev_second_stage['x'][(i,j,k,l)]
+            for (i,j,k,l) in prev_second_stage['z']:
+                z[(i,j,k,l)].Start = prev_second_stage['z'][(i,j,k,l)]
+            model.update()
+
         model.optimize()
 
         if diagnostics is not None:
-            diagnostics.append(collect_solve_diagnostics(model, label='EEVS', scenario=omega))
+            diagnostics.append(collect_solve_diagnostics(model, label='EEVS' + ('_warmstart' if warm_start_sequential else ''), scenario=omega))
 
         if model.SolCount == 0:
             raise RuntimeError(
@@ -325,6 +353,15 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
         x_star_EEVS[omega] = {var.varName:var.x for var in model.getVars()}
         OF_omega_obj_val = sum(alpha[(i,k,l,omega)]*math.log(x_star_EEVS[omega]["phi_"+str((i,k,l,omega))]) if x_star_EEVS[omega]["phi_"+str((i,k,l,omega))] > 0 else alpha[(i,k,l,omega)]*math.log(1e-9) for k in K for l in L_k[k] for i in N_k_d[k])
         OF_omega.append(OF_omega_obj_val)
+
+        if warm_start_sequential:
+            prev_second_stage = {
+                'phi': {(i,k,l): phi[(i,k,l,omega)].X for k in K for l in L_k[k] for i in N_k_d[k]},
+                'log_phi': {(i,k,l): log_phi[(i,k,l,omega)].X for k in K for l in L_k[k] for i in N_k_d[k]},
+                'delta_minus': {(i,k,l): delta_minus[(i,k,l,omega)].X for k in K for l in L_k[k] for i in N_k_d[k]},
+                'x': {(i,j,k,l): x[(i,j,k,l,omega)].X for k in K for l in L_k[k] for (i,j) in A_k[k] if (i in N_k_d_nod[k] and j in N_k_d_nod[k])},
+                'z': {(i,j,k,l): z[(i,j,k,l)].X for k in K for l in L_k[k] for (i,j) in A_k[k] if (i in N_k_d_nod[k] and j in N_k_d_nod[k])},
+            }
 
         del model
 
@@ -379,7 +416,7 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
         for (i,j) in A_k[k]:
             results['y_'+str((i,j,k))] = [x_star_EEVS[omega]['y_'+str((i,j,k))] for omega in OMEGA]
 
-    save_results_csv(results, results_path(f'EEVS_mu_hat_scarce_{scarce}_utility_type_{utility_type}_num_scenarios_{len(OMEGA)}_equal_probabilities_{True}_nat_log_linear_pieces_length_{pieces_length}.csv'))
+    save_results_csv(results, results_path(f'EEVS_mu_hat_scarce_{scarce}_utility_type_{utility_type}_num_scenarios_{len(OMEGA)}_equal_probabilities_{True}_nat_log_linear_pieces_length_{pieces_length}{"_warmstart" if warm_start_sequential else ""}.csv'))
 
     OF_EEVS = sum(OF for OF in OF_omega)/len(OMEGA)
 

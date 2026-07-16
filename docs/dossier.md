@@ -458,6 +458,36 @@ This closes the reproducibility/audit gap: every full `run_all()` invocation
 now leaves behind a persisted, human-readable record of exactly how each
 Gurobi solve terminated, not just the final headline numbers.
 
+### 9.4 Overwrite behavior on rerun, and why only `DE` has a raw Gurobi `LogFile`
+
+Before rerunning experiments (e.g. after the supply-flow-balance fix in
+Section 14), it's worth knowing exactly what gets cleanly replaced vs. what
+doesn't:
+
+- `results/scarce_<scarce>_..._.txt`, `..._summary.json`, and
+  `..._solve_diagnostics.md` (`run_experiments.write_summary`,
+  `write_summary_json`, `write_solve_diagnostics_md`) all use
+  `open(filename, "w")` — a full overwrite every run, filenames unchanged.
+- `results/{DE,EEVS_mu_hat,WS}_scarce_*.csv` (`save_results_csv`) — also a
+  clean overwrite.
+- `results/LOG_FILE_scarce_<scarce>_..._` — the one exception. This is a raw
+  Gurobi console log, set only in `de_model.py` via `model.params.LogFile =
+  ...`. Gurobi's `LogFile` **appends** to an existing file across separate
+  process runs rather than truncating it, so without a fix, rerunning would
+  silently concatenate old and new solver logs into the same file. Fixed by
+  deleting any existing file at that path immediately before setting
+  `LogFile` (`de_model.py`), so it's now also a clean overwrite per run.
+- **Only `DE` sets a `LogFile` — this is intentional, not an oversight.** `DE`
+  solves once for all scenarios in a single model, so one log file is
+  meaningful and cheap. `EV` and `EEVS`/`WS` build a fresh model and call
+  `model.optimize()` once per scenario (up to 150 times), so a per-scenario
+  `LogFile` would mean either ~150 files of clutter or a shared file needing
+  its own append-across-scenarios bookkeeping — not worth it, since the
+  per-solve numbers that matter (status, runtime, gap, objective) are already
+  captured by `collect_solve_diagnostics` into `solve_diagnostics.md` for
+  every model, including EV/EEVS/WS's per-scenario solves. Decision: leave
+  `LogFile` DE-only.
+
 ## 10. Key design facts worth remembering
 
 - `x_star` (first-stage supply-arc flow) is never indexed by `omega`; `x`
@@ -588,12 +618,22 @@ proxy.
 
 ### 12.3 Result (scarce = 0.75, 150 scenarios)
 
+**Post supply-flow-balance-fix rerun** (regenerated 2026-07-16, from the
+corrected `DE_scarce_0.75_..._.csv` — see Section 14.4 for the full
+stale-data catch and regeneration writeup; superseded the numbers below,
+which were from the pre-fix run):
+
 ```
-OF_A_DE (Formulation A, expected log-utility)   = 121.279
+OF_A_DE (Formulation A, expected log-utility)   = 121.356
 OF_B_expost (Formulation B objective, evaluated
-             ex-post on the DE solution)         = 126.400
-Jensen gap (log E[phi**alpha] - E[alpha log phi]) =   5.12
+             ex-post on the DE solution)         = 126.480
+Jensen gap (log E[phi**alpha] - E[alpha log phi]) =   5.124
 ```
+
+(Pre-fix numbers, kept for reference only — do not use: `OF_A_DE = 121.279`,
+`OF_B_expost = 126.400`, `jensen gap = 5.12`. The fix changed the headline
+totals negligibly at this precision, but see Section 14.4 for what *did*
+change — which specific node has the peak dispersion in the Power network.)
 
 The gap is strictly positive everywhere (as guaranteed by Jensen's inequality
 for a concave function), and concentrates heavily at a handful of nodes with
@@ -654,8 +694,8 @@ displays the top-10 per-node breakdown. Output also saved standalone to
      `phi_i` across the 150 scenarios — a direct, standard dispersion measure.
    - **Ex-post Jensen gap per node**, read straight from
      `results/jensen_gap_expost_from_de.csv` (Section 12).
-   Both are saved as PNGs to `results/` (`{network}_dispersion_cv_map.png`,
-   `{network}_jensen_gap_map.png`) as well as displayed inline.
+   Both are saved as PDFs to `results/` (`{network}_dispersion_cv_map.pdf`,
+   `{network}_jensen_gap_map.pdf`) as well as displayed inline.
 4. Verified by executing the full notebook end-to-end
    (`jupyter nbconvert --to notebook --execute --inplace`) against the real
    `scarce=0.75` data — all 27 cells run with no errors.
@@ -679,12 +719,12 @@ displays the top-10 per-node breakdown. Output also saved standalone to
 
 ### How to read each map (no title is drawn on the figures themselves)
 
-- **`{network}_dispersion_cv_map.png`** — demand nodes colored by the
+- **`{network}_dispersion_cv_map.pdf`** — demand nodes colored by the
   **coefficient of variation of `phi_i`** (its DE-solution allocation ratio)
   **across the 150 scenarios**, colorbar labeled "phi coefficient of variation
   (std/mean across DE scenarios)". Darker blue = that node's allocation swings
   more, relatively, from scenario to scenario.
-- **`{network}_jensen_gap_map.png`** — demand nodes colored by the **ex-post
+- **`{network}_jensen_gap_map.pdf`** — demand nodes colored by the **ex-post
   Jensen gap** at that node (from `results/jensen_gap_expost_from_de.csv`),
   colorbar labeled "ex-post Jensen gap (nats)". Darker purple = evaluating
   Formulation B's objective on Formulation A's existing allocation "gains"
@@ -754,13 +794,19 @@ only look as good as or better than taking the expectation *after* the log
 
 ### 13.3 Results / implications
 
+> **Update 2026-07-16 (post supply-flow-balance fix):** the tables below are
+> regenerated against the corrected `DE_scarce_0.75_..._.csv` (see Section
+> 14.4). Only one thing materially changed: Power's peak-CV node moved from
+> `Power_node_13` to `Power_node_25`. Every aggregate number (means, totals,
+> Jensen gap ranking) is unchanged at reporting precision.
+
 **Dispersion (coefficient of variation of `phi` across 150 DE scenarios):**
 
 | Network | Mean CV | Max CV | Node with max CV |
 |---|---|---|---|
 | Gas | 0.14 | 0.44 | Gas_node_15 |
-| Power | 0.09 | 0.49 | Power_node_13 |
-| Water | 0.12 | 0.52 | Water_node_39 |
+| Power | 0.09 | 0.51 | Power_node_25 |
+| Water | 0.11 | 0.52 | Water_node_39 |
 
 Water has both the highest average and highest peak dispersion, meaning its
 optimal allocations swing the most across scenarios — i.e., Water's demand
@@ -771,11 +817,11 @@ nodes are the most sensitive to the SVI-driven uncertainty in `alpha`.
 | Network | Total gap (nats) | Mean per node | Max per node | Node |
 |---|---|---|---|---|
 | Gas | 0.95 | 0.073 | 0.577 | Gas_node_9 |
-| Power | 2.39 | 0.057 | 0.449 | Power_node_19 |
+| Power | 2.39 | 0.057 | 0.448 | Power_node_19 |
 | Water | 1.78 | 0.052 | 0.451 | Water_node_18 |
 
-Total gap across all three networks is **5.12 nats** (`OF_A_DE = 121.28` ->
-`OF_B_expost = 126.40`). Power contributes the largest *total* gap (more nodes
+Total gap across all three networks is **5.124 nats** (`OF_A_DE = 121.356` ->
+`OF_B_expost = 126.480`). Power contributes the largest *total* gap (more nodes
 with moderate gaps), while the single largest *per-node* gap is at
 `Gas_node_9` (0.58 nats) — this node's CV/dispersion in the map above is not
 the single highest, meaning the Jensen gap concentration doesn't map 1:1 onto
@@ -795,3 +841,148 @@ are exactly where Formulation A's risk-averse objective is doing real work
 protecting against bad-scenario outcomes that a naive average-allocation view
 would not catch — i.e., where reporting "the DE solution is fair on average"
 would be most misleading without also reporting the scenario spread.
+
+## 14. Supply-to-supply flow-balance fix, safe-rerun guarantees, and a sequential warm-start experiment
+
+### 14.1 Supply flow-balance constraint fix (all four models)
+
+The supply-node balance constraint in `EV_and_EEVS` (both the `EV` and `EEVS`
+blocks), `WS`, and `DE` previously only balanced outflow against net supply:
+
+```
+sum_j x_star[i,j,k,l]                                        == b[i,k,l] - delta_plus[i,k,l]
+```
+
+This didn't allow a supply node to *receive* flow from another supply node
+(supply-to-supply transfers), which the network topology allows for. Fixed by
+adding the missing inflow term to all four occurrences (`ev_eevs_model.py`
+lines ~78 and ~213, `ws_model.py` line ~76, `de_model.py` line ~80):
+
+```
+sum_j x_star[i,j,k,l] - sum_j x_star[j,i,k,l]  == b[i,k,l] - delta_plus[i,k,l]
+                        (new inflow term, j in N_k_s[k])
+```
+
+Applied identically to all four solve blocks since this constraint has the
+same structure everywhere. Verified all three files compile cleanly; the user
+then manually reran the full `run_experiments.run_all()` pipeline with this
+fix in place — see Section 14.4 for the post-fix Jensen gap/dispersion
+results and a stale-data issue caught and fixed during that regeneration.
+
+### 14.2 Safe-rerun guarantees confirmed before the manual rerun
+
+Before rerunning, confirmed exactly what does and doesn't cleanly overwrite —
+see Section 9.4 for the full writeup. Summary: `.txt`/`_summary.json`/
+`_solve_diagnostics.md`/all result CSVs use `open(..., "w")` and always
+overwrite cleanly; the one exception was the DE model's raw Gurobi `LogFile`
+(appends by default across process runs) — fixed by deleting any existing
+file at that path before each DE solve. Only `DE` sets a `LogFile` at all
+(intentional — `EV`/`EEVS`/`WS` solve many small per-scenario models where a
+log file per solve would be impractical clutter; their per-solve stats are
+already captured in `solve_diagnostics.md`).
+
+### 14.3 Sequential MIP warm-start: a small, verified runtime experiment
+
+**Motivation.** In both `EEVS` and `WS`, every scenario's constraint set is
+built only from `b`, `u`, `gamma`, etc. — none of which are indexed by
+`omega`. Only `alpha` varies per scenario, and `alpha` appears **exclusively
+in the objective**, never in a constraint. So every scenario solved in a
+sequential loop shares an *identical feasible region*; the previous
+scenario's optimal solution is therefore provably feasible for the next one,
+making it a legitimate Gurobi MIP `Start` (warm start) candidate — pure
+runtime experiment, does not change any result.
+
+**Implementation** (`ws_model.py`, `ev_eevs_model.py`): added an opt-in
+`warm_start_sequential=False` parameter (default off, so `run_experiments.py`
+and all existing behavior are completely unaffected). When `True`, each
+scenario after the first has every variable's `.Start` set from the previous
+scenario's solved values before `model.optimize()`. Output filenames and
+diagnostics labels get a `_warmstart` suffix whenever the flag is on, so a
+benchmark run can never collide with or overwrite baseline result files.
+`src/benchmark_warm_start.py` is a small standalone script/importable function
+(`run_benchmark(scarce)`) that reruns only `EEVS` (sample-mean) and `WS` with
+the flag on, using the same `seed`/parameter-loading as
+`run_experiments.run_scarcity_level` for a fair comparison, and writes its own
+`scarce_<scarce>_solve_diagnostics_warmstart.md`.
+
+**Result (scarce = 0.75, 150 scenarios, same alpha draws as the baseline run
+via matching `seed`):**
+
+| Model | Baseline total (s) | Warm-start total (s) | Change | Baseline mean/solve | Warm-start mean/solve |
+|---|---|---|---|---|---|
+| EEVS (sample-mean) | 3113.1 | 2609.7 | **16.2% faster** | 20.75s | 17.40s |
+| WS | 26.4 | 35.6 | **34.6% slower** | 0.176s | 0.237s |
+
+**Correctness check:** compared `obj_val` scenario-by-scenario between
+baseline and warm-start runs for both models — **zero mismatches** (all
+within `1e-3`, well inside solver tolerance). Warm-starting only ever affects
+*how fast* Gurobi reaches the optimum, never *what* the optimum is, as
+expected since it's just a MIP start hint, not a change to the model.
+
+**Interpretation — why it helps EEVS but hurts WS:** EEVS's per-scenario
+solves are genuinely hard MIQCPs (baseline mean ~21s, max 75s) — a warm
+incumbent measurably prunes the branch-and-bound tree, netting a real ~16%
+time saving over 150 scenarios (~8 minutes saved on this run). WS's
+per-scenario solves are already close to instant (baseline mean ~0.18s) —
+here, the Python-side cost of setting hundreds of `.Start` values every
+iteration plus Gurobi's own MIP-start processing overhead outweighs any
+branch-and-bound savings on a problem that's already trivial to solve. **Net
+takeaway: sequential warm-starting is worth keeping for `EEVS` (the
+computationally expensive model) but not worth enabling for `WS` (already
+fast) — a real, if modest, demonstrable contribution when applied selectively
+rather than blanket-enabled.** Kept as an opt-in flag (default off) rather
+than a mandatory pipeline change, given the mixed result.
+
+### 14.4 Stale Jensen gap / dispersion data caught before it reached the paper
+
+After the flow-balance fix's rerun completed, the user independently
+spot-checked whether `results/jensen_gap_expost_from_de.csv` (Section 12) and
+the dispersion/Jensen-gap maps (Section 13) had actually been regenerated
+against the *new* DE solve, rather than silently left over from before the
+fix. Two things were flagged:
+
+1. **Stale by ~6 hours.** `jensen_gap_expost_from_de.csv` was timestamped
+   19:22 the prior day; the corrected `DE_scarce_0.75_..._.csv` was
+   timestamped 01:12 the next morning. Confirmed numerically too: summing
+   `E_log_util_A` from the stale CSV reproduced the *old* `OF_DE = 121.279`
+   exactly, not the corrected `summary.json`'s `OF_DE = 121.356`. Root cause:
+   `jensen_gap_from_de_csv.py` was run once (Section 12) and never re-run
+   after the model fix — it doesn't auto-run as part of `run_experiments.py`
+   by design (per the earlier explicit instruction not to fold it into the
+   main pipeline), so nothing re-triggered it automatically.
+   - **Fix:** re-ran `python jensen_gap_from_de_csv.py` against the current
+     DE CSV. New result: `OF_A_DE_check = 121.356` (now matches
+     `summary.json` exactly), `OF_B_expost = 126.480`, `jensen_gap = 5.124`.
+     Also re-executed `notebooks/plotter.ipynb` end-to-end (zero errors) to
+     regenerate all 6 map PNGs against the corrected data. Section 12.3 and
+     13.3's tables above are updated with these post-fix numbers.
+   - **What actually changed vs. the pre-fix numbers:** almost nothing at
+     reporting precision — total Jensen gap 5.124 vs. 5.12, same top-3 gap
+     nodes in the same order (`Gas_node_9` > `Water_node_18` >
+     `Power_node_19`). The one real change: Power's peak-CV node moved from
+     `Power_node_13` to `Power_node_25`. The supply-flow-balance fix allows
+     supply nodes to route flow to each other, which apparently redistributes
+     enough to shift *which* Power node is most scenario-sensitive, without
+     moving the aggregate totals much at this scarcity level.
+2. **159 columns in the DE CSV — checked, not a bug.** The user noticed
+   `phi_(...)` rows have 159 values instead of the expected 150 and flagged
+   it for a sanity check rather than assuming a bug. Confirmed: the CSV has
+   150 scenario columns (`'0'`..`'149'`) **plus 9 appended summary-stat
+   columns** (`mean`, `std`, `min`, `max`, `median`, `mode`, `q1`, `q2`, `q3`)
+   from `gurobi_utils`'s results-export helper — 150 + 9 = 159, exactly as
+   expected. `jensen_gap_from_de_csv.py`'s `_omega_columns()` already filters
+   to only the digit-named columns (`c.isdigit()`) before computing anything,
+   so this was never a live bug in the Jensen gap script itself — confirmed
+   by `Scenarios: 150` in its own printed output on the rerun above. Flagging
+   it as "159 raw values" without that filter would look like a bug to a
+   naive parse of the CSV, though, so worth remembering when writing any new
+   ad hoc script against these result CSVs.
+
+**Takeaway:** any script/notebook that consumes `DE_scarce_*.csv`,
+`EEVS_mu_hat_scarce_*.csv`, or `WS_scarce_*.csv` downstream (Jensen gap,
+plotter, any future analysis) needs to be explicitly re-run any time the
+underlying model code changes and the pipeline is rerun — nothing
+auto-detects staleness. Worth checking file timestamps (or, more robustly,
+recomputing `OF_A_DE_check` and diffing against `summary.json`'s `OF_DE`, as
+was done here) before trusting a downstream results file after a model
+change.

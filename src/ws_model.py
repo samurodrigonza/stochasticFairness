@@ -8,13 +8,26 @@ from gurobi_utils import configure_common_gurobi_params, save_results_csv, colle
 from paths import results_path
 
 
-def WS(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, x_start = {}, diagnostics=None):
+def WS(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, x_start = {}, diagnostics=None, warm_start_sequential=False):
     """`diagnostics`: optional list; if provided, one solve-diagnostics record
     per scenario is appended to it - see `run_experiments.write_solve_diagnostics_md`.
+
+    `warm_start_sequential`: runtime-only experiment, off by default (does not
+    change results). When True, each scenario solve after the first is given a
+    Gurobi MIP start built from the previous scenario's full solution (all
+    vars: x_star, w, y, z_star, delta_plus, phi, log_phi, delta_minus, x, z).
+    This is valid because `alpha` (the only thing that varies by scenario) only
+    ever appears in the objective, never in a constraint, so every scenario's
+    WS model shares the exact same feasible region -- the previous scenario's
+    optimum is provably feasible for the next one. Only intended for a
+    side-by-side runtime comparison against a baseline
+    (`warm_start_sequential=False`) run; output filenames get a `_warmstart`
+    suffix so they never collide with/overwrite baseline results.
     """
 
     x_star_WS = {}
     OF_omega = []
+    prev_solution = None  # carries the last scenario's full solution for warm_start_sequential
     for omega in OMEGA:
         print(f'Wait and see, scenario {omega+1} out of {len(OMEGA)}')
 
@@ -73,7 +86,7 @@ def WS(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
         for k in K:
             for l in L_k[k]:
                 for i in N_k_s[k]:
-                    model.addConstr(quicksum(x_star[(i,j,k,l)] for j in N_k[k] if (i,j) in A_k[k]) == b[(i,k,l)] - delta_plus[(i,k,l)], name = 'supply_flow_balance_'+str((i,k,l)))
+                    model.addConstr(quicksum(x_star[(i,j,k,l)] for j in N_k[k] if (i,j) in A_k[k]) - quicksum(x_star[(j,i,k,l)] for j in N_k_s[k] if (j,i) in A_k[k]) == b[(i,k,l)] - delta_plus[(i,k,l)], name = 'supply_flow_balance_'+str((i,k,l)))
 
 
         for k in K:
@@ -137,16 +150,53 @@ def WS(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
                         model.getVarByName('phi_'+str((i,k,l,omega))).Start = x_star_EV['phi_'+str((i,k,l))]
                         model.update()
 
+        if warm_start_sequential and prev_solution is not None:
+            # Same feasible region every scenario (alpha only appears in the objective), so
+            # the previous scenario's full optimal solution is a provably-feasible MIP start.
+            for key, v in x_star.items():
+                v.Start = prev_solution['x_star'][key]
+            for key, v in w.items():
+                v.Start = prev_solution['w'][key]
+            for key, v in y.items():
+                v.Start = prev_solution['y'][key]
+            for key, v in delta_plus.items():
+                v.Start = prev_solution['delta_plus'][key]
+            for key, v in z_star.items():
+                v.Start = prev_solution['z_star'][key]
+            for (i,k,l) in prev_solution['phi']:
+                phi[(i,k,l,omega)].Start = prev_solution['phi'][(i,k,l)]
+                log_phi[(i,k,l,omega)].Start = prev_solution['log_phi'][(i,k,l)]
+                delta_minus[(i,k,l,omega)].Start = prev_solution['delta_minus'][(i,k,l)]
+            for (i,j,k,l) in prev_solution['x']:
+                x[(i,j,k,l,omega)].Start = prev_solution['x'][(i,j,k,l)]
+            for key, v in z.items():
+                v.Start = prev_solution['z'][key]
+
         model.update()
 
         model.optimize()
 
         if diagnostics is not None:
-            diagnostics.append(collect_solve_diagnostics(model, label='WS', scenario=omega))
+            diagnostics.append(collect_solve_diagnostics(model, label='WS' + ('_warmstart' if warm_start_sequential else ''), scenario=omega))
 
         x_star_WS[omega] = {var.varName:var.x for var in model.getVars()}
         OF_omega_obj_val = sum(alpha[(i,k,l,omega)]*math.log(x_star_WS[omega]["phi_"+str((i,k,l,omega))]) if x_star_WS[omega]["phi_"+str((i,k,l,omega))] > 0 else alpha[(i,k,l,omega)]*math.log(1e-9) for k in K for l in L_k[k] for i in N_k_d[k])
         OF_omega.append(OF_omega_obj_val) 
+
+        if warm_start_sequential:
+            prev_solution = {
+                'x_star': {key: v.X for key, v in x_star.items()},
+                'w': {key: v.X for key, v in w.items()},
+                'y': {key: v.X for key, v in y.items()},
+                'delta_plus': {key: v.X for key, v in delta_plus.items()},
+                'z_star': {key: v.X for key, v in z_star.items()},
+                'phi': {(i,k,l): phi[(i,k,l,omega)].X for k in K for l in L_k[k] for i in N_k_d[k]},
+                'log_phi': {(i,k,l): log_phi[(i,k,l,omega)].X for k in K for l in L_k[k] for i in N_k_d[k]},
+                'delta_minus': {(i,k,l): delta_minus[(i,k,l,omega)].X for k in K for l in L_k[k] for i in N_k_d[k]},
+                'x': {(i,j,k,l): x[(i,j,k,l,omega)].X for k in K for l in L_k[k] for (i,j) in A_k[k] if (i in N_k_d_nod[k] and j in N_k_d_nod[k])},
+                'z': {key: v.X for key, v in z.items()},
+            }
+
 
         del model
 
@@ -201,7 +251,7 @@ def WS(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
         for (i,j) in A_k[k]:
             results['y_'+str((i,j,k))] = [x_star_WS[omega]['y_'+str((i,j,k))] for omega in OMEGA]
 
-    save_results_csv(results, results_path(f'WS_scarce_{scarce}_utility_type_{utility_type}_num_scenarios_{len(OMEGA)}_equal_probabilities_{True}_nat_log_linear_pieces_length_{pieces_length}.csv'))
+    save_results_csv(results, results_path(f'WS_scarce_{scarce}_utility_type_{utility_type}_num_scenarios_{len(OMEGA)}_equal_probabilities_{True}_nat_log_linear_pieces_length_{pieces_length}{"_warmstart" if warm_start_sequential else ""}.csv'))
 
     OF_WS = sum(OF for OF in OF_omega)/len(OMEGA)
 
