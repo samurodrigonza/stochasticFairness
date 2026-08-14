@@ -5,6 +5,8 @@ These utilities are reused by the EV/EEVS, WS (wait-and-see) and DE
 summary-statistics/CSV export logic are defined in a single place.
 """
 
+import os
+
 import numpy as np
 import pandas as pd
 
@@ -16,8 +18,14 @@ _STATUS_NAMES = {
 }
 
 
-def configure_common_gurobi_params(model, num_focus=3, output_flag=0):
-    """Apply the Gurobi parameter settings shared by all tdINDP models."""
+def configure_common_gurobi_params(model, num_focus=3, output_flag=1, log_file=None):
+    """Apply the Gurobi parameter settings shared by all tdINDP models.
+
+    If `log_file` is given, the full Gurobi solver log for this solve is written
+    there. Any existing file at that path is removed first, because Gurobi
+    appends to (rather than overwrites) an existing LogFile across runs -- so
+    each per-solve log stays scoped to just the current solve.
+    """
     model.setParam('OutputFlag', output_flag)
     model.setParam('FuncPieceRatio', -1)
     model.setParam('FuncPieceError', 1e-4)  # tightens the piecewise-linear approximation of ln(phi) beyond the default
@@ -25,6 +33,10 @@ def configure_common_gurobi_params(model, num_focus=3, output_flag=0):
     model.setParam('NumericFocus', num_focus)
     model.setParam('IntegralityFocus', 1)
     model.setParam('IntFeasTol', 1e-9)
+    if log_file is not None:
+        if os.path.exists(log_file):
+            os.remove(log_file)
+        model.setParam('LogFile', log_file)
 
 
 def collect_solve_diagnostics(model, label, scenario=None):

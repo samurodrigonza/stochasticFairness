@@ -166,12 +166,12 @@ def run_scarcity_level(scarce, utility_type='power', pieces_length=1, num_scenar
     print('Expected value population\n')
     diagnostics = []
     n0 = len(diagnostics)
-    x_star_EV_alpha_mu, OF_EV_alpha_mu, x_star_EEVS_alpha_mu, OF_EEVS_alpha_mu = EV_and_EEVS(alpha_mu_type=alpha_mu, diagnostics=diagnostics, **common_kwargs)
+    x_star_EV_alpha_mu, OF_EV_alpha_mu, x_star_EEVS_alpha_mu, OF_EEVS_alpha_mu = EV_and_EEVS(alpha_mu_type=alpha_mu, diagnostics=diagnostics, log_tag='population_mean', **common_kwargs)
     for r in diagnostics[n0:]:
         r['label'] = r['label'] + '_population_mean'
     print('Expected value sample\n')
     n1 = len(diagnostics)
-    x_star_EV_alpha_mu_hat, OF_EV_alpha_mu_hat, x_star_EEVS_alpha_mu_hat, OF_EEVS_alpha_mu_hat = EV_and_EEVS(alpha_mu_type=alpha_mu_hat, diagnostics=diagnostics, **common_kwargs)
+    x_star_EV_alpha_mu_hat, OF_EV_alpha_mu_hat, x_star_EEVS_alpha_mu_hat, OF_EEVS_alpha_mu_hat = EV_and_EEVS(alpha_mu_type=alpha_mu_hat, diagnostics=diagnostics, log_tag='sample_mean', **common_kwargs)
     for r in diagnostics[n1:]:
         r['label'] = r['label'] + '_sample_mean'
     x_star_WS, OF_WS = WS(diagnostics=diagnostics, **common_kwargs)

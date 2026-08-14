@@ -5,10 +5,10 @@ import math
 from gurobipy import GRB, Model, quicksum
 
 from gurobi_utils import configure_common_gurobi_params, save_results_csv, collect_solve_diagnostics
-from paths import results_path
+from paths import results_path, solver_log_path
 
 
-def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, diagnostics=None, warm_start_sequential=False):
+def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, diagnostics=None, warm_start_sequential=False, log_tag=''):
     '''
     `diagnostics`: optional list; if provided, one `collect_solve_diagnostics(...)`
     record per Gurobi solve (the EV solve, then one per EEVS scenario) is
@@ -40,7 +40,9 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
     '''
     utility_type = 'power'
     pieces_length = 1
-    configure_common_gurobi_params(model)
+    _log_tag = f'_{log_tag}' if log_tag else ''
+    _ws_sfx = '_warmstart' if warm_start_sequential else ''
+    configure_common_gurobi_params(model, log_file=solver_log_path(f'EV_scarce_{scarce}{_log_tag}.log'))
 
     '''
     first stage variables
@@ -102,7 +104,7 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
         for k_tilde in K:
             for j in N_k[k_tilde]:
                 if (i,j,k,k_tilde) in gamma.keys():
-                    model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) <= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
+                    model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) >= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
 
 
 
@@ -175,7 +177,7 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
         Gurobi parameters
 
         '''
-        configure_common_gurobi_params(model)
+        configure_common_gurobi_params(model, log_file=solver_log_path(f'EEVS_scarce_{scarce}{_log_tag}_scenario_{omega}{_ws_sfx}.log'))
 
         '''
         first stage variables
@@ -238,7 +240,7 @@ def EV_and_EEVS(alpha_mu_type, b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_p
             for k_tilde in K:
                 for j in N_k[k_tilde]:
                     if (i,j,k,k_tilde) in gamma.keys():
-                        model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) <= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
+                        model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) >= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
 
 
 

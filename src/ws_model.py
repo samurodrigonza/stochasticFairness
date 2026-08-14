@@ -5,7 +5,7 @@ import math
 from gurobipy import GRB, Model, quicksum
 
 from gurobi_utils import configure_common_gurobi_params, save_results_csv, collect_solve_diagnostics
-from paths import results_path
+from paths import results_path, solver_log_path
 
 
 def WS(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, x_start = {}, diagnostics=None, warm_start_sequential=False):
@@ -27,6 +27,7 @@ def WS(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
 
     x_star_WS = {}
     OF_omega = []
+    _ws_sfx = '_warmstart' if warm_start_sequential else ''
     prev_solution = None  # carries the last scenario's full solution for warm_start_sequential
     for omega in OMEGA:
         print(f'Wait and see, scenario {omega+1} out of {len(OMEGA)}')
@@ -39,7 +40,7 @@ def WS(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
         '''
         utility_type = 'power'
         pieces_length = 1
-        configure_common_gurobi_params(model)
+        configure_common_gurobi_params(model, log_file=solver_log_path(f'WS_scarce_{scarce}_scenario_{omega}{_ws_sfx}.log'))
 
         '''
         first stage variables
@@ -101,7 +102,7 @@ def WS(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
             for k_tilde in K:
                 for j in N_k[k_tilde]:
                     if (i,j,k,k_tilde) in gamma.keys():
-                        model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) <= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
+                        model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) >= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
 
 
 

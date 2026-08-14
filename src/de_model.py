@@ -1,13 +1,12 @@
 """Deterministic Equivalent (DE) model: single model spanning all scenarios."""
 
 import math
-import os
 
 import numpy as np
 from gurobipy import GRB, Model, quicksum
 
 from gurobi_utils import configure_common_gurobi_params, save_results_csv, collect_solve_diagnostics
-from paths import results_path
+from paths import results_path, solver_log_path
 
 
 def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, x_start = {}, diagnostics=None):
@@ -27,7 +26,7 @@ def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
 
     utility_type = 'power'
     pieces_length = 1
-    configure_common_gurobi_params(model, output_flag=1)
+    configure_common_gurobi_params(model, log_file=solver_log_path(f'DE_scarce_{scarce}.log'))
 
     '''
     first stage variables
@@ -93,7 +92,7 @@ def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
         for k_tilde in K:
             for j in N_k[k_tilde]:
                 if (i,j,k,k_tilde) in gamma.keys():
-                    model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) <= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
+                    model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) >= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
 
 
 
@@ -142,12 +141,6 @@ def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
 
     model.update()
 
-    log_file_path = results_path(f'LOG_FILE_scarce_{scarce}_utility_type_{utility_type}_num_scenarios_{len(OMEGA)}_equal_probabilities_{True}_nat_log_linear_pieces_length_{pieces_length}')
-    if os.path.exists(log_file_path):
-        # Gurobi appends to an existing LogFile rather than overwriting it, so remove any
-        # stale log from a previous run to keep this file scoped to the current solve only.
-        os.remove(log_file_path)
-    model.params.LogFile = log_file_path
     model.optimize()
 
     if diagnostics is not None:

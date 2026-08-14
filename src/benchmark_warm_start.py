@@ -51,7 +51,7 @@ def run_benchmark(scarce, num_scenarios=150, seed=42):
 
     print(f'[warm-start benchmark] EEVS sample-mean, scarce={scarce}, warm_start_sequential=True\n')
     n0 = len(diagnostics)
-    EV_and_EEVS(alpha_mu_type=alpha_mu_hat, diagnostics=diagnostics, warm_start_sequential=True, **common_kwargs)
+    EV_and_EEVS(alpha_mu_type=alpha_mu_hat, diagnostics=diagnostics, warm_start_sequential=True, log_tag='sample_mean', **common_kwargs)
     for r in diagnostics[n0:]:
         r['label'] = r['label'] + '_sample_mean'
 
