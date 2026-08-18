@@ -33,6 +33,7 @@ def load_base_parameters():
     # Collapse the time dimension (a single, un-disrupted time step is used).
     b = {(i, k, l): b[(i, k, l, 0)] for (i, k, l, _) in b.keys()}
     u = {(i, j, k): u[(i, j, k, 0)] for (i, j, k, _) in u.keys()}
+    gamma = {(i, j, k, k_tilde): v for (i, j, k, k_tilde, t), v in gamma.items() if t == 0}
 
     return (N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p,
             M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, b, N_k_d, N_k_s, N_k_nod, N_k_d_nod)
@@ -88,12 +89,17 @@ def write_summary(filename, scarce, utility_type, num_scenarios, same_probs, pie
 
 def write_summary_json(filename, scarce, utility_type, num_scenarios, same_probs, pieces_length,
                         OF_EV_alpha_mu, OF_EV_alpha_mu_hat, OF_EEVS_alpha_mu, OF_EEVS_alpha_mu_hat,
-                        OF_WS, OF_DE):
+                        OF_WS, OF_DE, diagnostics=None):
     """Machine-readable twin of `write_summary` (plain JSON, one file per scarcity level).
 
     This is what plotter.ipynb should load automatically instead of hand-copying
     numbers out of the console/`.txt` summary - see the "scarce_*_summary.json"
     glob pattern used there.
+
+    If `diagnostics` is given, the per-model solver configuration is recorded
+    alongside the objectives. VSS and EVPI are small differences of large,
+    separately-solved objectives, so the ln(phi) treatment and MIPGap that
+    produced them are part of the result, not incidental settings.
     """
     summary = {
         'scarce': scarce, 'utility_type': utility_type, 'num_scenarios': num_scenarios,
@@ -105,6 +111,13 @@ def write_summary_json(filename, scarce, utility_type, num_scenarios, same_probs
         'VSS_alpha_mu': OF_DE - OF_EEVS_alpha_mu,
         'VSS_alpha_mu_hat': OF_DE - OF_EEVS_alpha_mu_hat,
     }
+    if diagnostics:
+        configs = {}
+        for record in diagnostics:
+            config = record.get('solver_config')
+            if config is not None:
+                configs.setdefault(record['label'], config)
+        summary['solver_config'] = configs
     with open(filename, "w") as file:
         json.dump(summary, file, indent=2)
     return summary
@@ -202,7 +215,8 @@ def run_scarcity_level(scarce, utility_type='power', pieces_length=1, num_scenar
 
     summary_json_filename = results_path(f"scarce_{scarce}_utility_type_{utility_type}_num_scenarios_{len(OMEGA)}_equal_probabilities_{same_probs}_nat_log_linear_pieces_length_{pieces_length}_summary.json")
     write_summary_json(summary_json_filename, scarce, utility_type, len(OMEGA), same_probs, pieces_length,
-                        OF_EV_alpha_mu, OF_EV_alpha_mu_hat, OF_EEVS_alpha_mu, OF_EEVS_alpha_mu_hat, OF_WS, OF_DE)
+                        OF_EV_alpha_mu, OF_EV_alpha_mu_hat, OF_EEVS_alpha_mu, OF_EEVS_alpha_mu_hat, OF_WS, OF_DE,
+                        diagnostics=diagnostics)
 
     diagnostics_md_filename = results_path(f"scarce_{scarce}_solve_diagnostics.md")
     write_solve_diagnostics_md(diagnostics_md_filename, scarce, diagnostics)

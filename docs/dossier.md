@@ -986,3 +986,389 @@ auto-detects staleness. Worth checking file timestamps (or, more robustly,
 recomputing `OF_A_DE_check` and diffing against `summary.json`'s `OF_DE`, as
 was done here) before trusting a downstream results file after a model
 change.
+
+---
+
+## 15. The interdependency constraint was never built; solver reconfiguration; final run of record
+
+This section supersedes earlier solver-configuration notes. It is written to be
+self-contained for anyone (human or agent) picking the project up cold.
+
+### 15.1 The headline bug: a silent 4-tuple / 5-tuple key mismatch
+
+A coauthor flagged the inequality direction of the interdependency constraint
+during revision. Investigating it turned up something worse: **the constraint
+had never been added to any model.**
+
+`gamma` is built in `tdINDP_parameters_build.py:354` with **5-tuple** keys
+carrying a trailing time index:
+
+```python
+gamma[(dependee_node, depender_node, dependee_network, depender_network, t)] = 1
+```
+
+Every model file guarded constraint creation with a **4-tuple** lookup,
+`if (i,j,k,k_tilde) in gamma.keys()`. That test is silently `False` for every
+candidate pair -- verified: **0 matches out of 19,600 candidate pairs**, versus
+27 matches for the 5-tuple form. No exception, no warning; the models built,
+solved, and reported `OPTIMAL`. This is why the earlier `<=` -> `>=` sign fix
+produced bit-identical results: it flipped the sign of a constraint that did
+not exist.
+
+**Root cause, precisely.** `load_base_parameters()` already collapses the time
+dimension for `b` and `u` (lines 33-35) but never did so for `gamma`. The fix
+matches that existing pattern rather than patching six call sites:
+
+```python
+# src/run_experiments.py, ~line 36
+gamma = {(i, j, k, k_tilde): v for (i, j, k, k_tilde, t), v in gamma.items() if t == 0}
+```
+
+All `gamma` values are `1` and all live at `t == 0`, so the collapse is lossless.
+
+**Semantics** (confirmed against the builder): `i` is the **dependee/provider**
+in network `k`; `j` is the **depender** in network `k_tilde`. The constraint is
+
+```python
+quicksum(w[(i_dep,k,t)] * gamma[(i_dep,j,k,k_tilde,t)] for i_dep in dep_nodes) - w[(j,k_tilde,t)] >= 0
+```
+
+i.e. a depender may only be functional if its dependees are. `>=` is correct.
+The aggregate form is used (21 constraints); a disaggregated per-pair variant
+(27 constraints) was implemented and tested but rejected -- only 4 of 21
+dependers have more than one dependee, so it strengthens almost nothing.
+
+> **Correct the stale comment at `tdINDP_parameters_build.py:361`** -- it states
+> the index order backwards, contradicting the construction two lines above,
+> and is the likely origin of the original confusion. Still unfixed.
+
+### 15.2 Why the published numbers survived
+
+Before rerunning anything, all 21 constraints were evaluated against every
+stored solution (21 constraints x 150 scenarios x DE/WS/EEVS): **zero
+violations**, for both the aggregate and disaggregated forms. Since adding
+constraints only shrinks the feasible region, and the previous optimum remains
+feasible within it, that optimum remains optimal. The bug was real but
+**non-binding at `scarce = 0.75`**.
+
+Caveat for the paper: this is verified *at this scarcity level only*. Tighter
+scarcity forces more `w = 0`, at which point the constraint can bind and
+results may genuinely move. Note DE has all `w = 1`, but EEVS and WS genuinely
+have 1-2 nodes with `w = 0` per scenario.
+
+### 15.3 The performance bug: piecewise-linear expansion of `ln(phi)`
+
+With the constraints finally active, EEVS/WS solves went from ~0.28 s median to
+grinding for hours. The interdependency constraints were **not** the cause.
+
+`addGenConstrLog` was being handled by static piecewise-linear approximation.
+Minimal repro, a single log constraint: `FuncNonlinear=0` produced **225**
+presolved columns; `FuncNonlinear=1` produced **3**, same objective. At 89 log
+terms this is the observed `Presolve added 0 rows and 20788 columns` plus 89
+SOS2 sets.
+
+Setting `FuncNonlinear=1` (dynamic outer approximation, exact) reduced the
+presolved model from **22,142 columns + 89 SOS to 389 columns, 0 SOS**.
+
+### 15.4 The numerics were self-contradictory
+
+The previous settings were `NumericFocus=3`, `IntegralityFocus=1`,
+`IntFeasTol=1e-9`. That demanded integrality feasibility **six orders of
+magnitude tighter than the accuracy of the model's own nonlinear constraints**
+(the PWL expansion reported `max constraint violation ~5e-04 exceeds
+tolerance` on essentially every solve), which explains the many `infeasible`
+nodes explored at ~0 simplex iterations each.
+
+With `FuncNonlinear=1` the log constraints are handled exactly, so the conflict
+is gone and the expensive numerics are no longer justified. Relaxing them is
+also what finally unstuck DE: under `FuncNonlinear=1` with the *tight*
+numerics, DE's spatial branch-and-bound bound froze at its root value
+(121.42097) for 2,300+ s. With the relaxed numerics **DE closes in 65.8 s.**
+
+### 15.5 Final hyperparameters (the run of record)
+
+Set once in `configure_common_gurobi_params` (`src/gurobi_utils.py`) and applied
+uniformly to **all** models -- EV, EEVS, WS, DE. There is no longer a hybrid
+per-model configuration.
+
+| parameter | value | rationale |
+|---|---|---|
+| `FuncNonlinear` | `1` | exact log via outer approximation; avoids the ~20k-column PWL blowup |
+| `MIPGap` | `1e-4` | Gurobi's own default, but now set **explicitly** so it is recorded |
+| `NumericFocus` | `0` | conflict with nonlinear accuracy removed |
+| `IntegralityFocus` | `0` | as above |
+| `IntFeasTol` | `1e-7` | still 100x tighter than Gurobi's `1e-5` default |
+| `FuncPieceError` | `1e-4` | only consulted if `FuncNonlinear=0` |
+| `DualReductions` | `0` | keeps INFEASIBLE vs UNBOUNDED distinguishable |
+
+**Environment:** Gurobi **11.0.3**, Python **3.8.0** (EOL Oct 2024), academic
+license expiring 2027-06-08. Gurobi **13.0.2** is current and advertises
+substantially faster MINLP plus a new nonlinear barrier method -- directly
+relevant to the DE spatial-B&B bound. It requires **Python >= 3.10** (Gurobi 12
+requires >= 3.9), so upgrading means rebuilding the environment and probably
+regenerating the license file. Deliberately deferred, not rejected.
+
+**Provenance.** `solver_config_snapshot()` reads these six parameters back off
+each solved model, `collect_solve_diagnostics` carries them, and
+`write_summary_json` emits a `solver_config` block **keyed by model label** in
+`summary.json`. Results files are now self-describing: no run's configuration
+has to be reconstructed from memory. DE additionally dumps its full solution to
+`results/DE_solution_scarce_{scarce}_num_scenarios_{n}.json`, so any DE solve
+can be replayed as a warm start.
+
+### 15.6 Runtime, after
+
+Whole pipeline, 453 solves: **150.7 s** (was hours).
+
+| stage | n | total | median | max |
+|---|---|---|---|---|
+| EV (both) | 2 | 0.4 s | 0.18 s | 0.2 s |
+| EEVS population-mean | 150 | 13.8 s | 0.09 s | 0.2 s |
+| EEVS sample-mean | 150 | 32.7 s | 0.18 s | 0.4 s |
+| WS | 150 | 38.0 s | 0.25 s | 0.4 s |
+| DE | 1 | 65.8 s | -- | -- |
+
+DE terminated `OPTIMAL`, objective 121.3373588, bound 121.3455042, **gap
+0.0067%**. No solve raised a diagnostic flag.
+
+### 15.7 Results comparison across the three configurations
+
+- **A** = original/published: PWL, tight numerics, **interdependency constraints absent** (the bug)
+- **B** = hybrid: DE=PWL, EEVS/WS=outer, tight numerics, constraints active
+- **C** = final run of record: all-outer, `MIPGap=1e-4`, relaxed numerics, constraints active
+
+| metric | A (published) | B (hybrid) | C (final) | C - A |
+|---|---|---|---|---|
+| `OF_EV_alpha_mu` | 121.02311 | 121.02454 | 121.02108 | -0.00202 |
+| `OF_EV_alpha_mu_hat` | 120.98761 | 120.98880 | 120.98894 | +0.00133 |
+| `OF_EEVS_alpha_mu` | 121.27090 | 121.28689 | 121.29304 | +0.02213 |
+| `OF_EEVS_alpha_mu_hat` | 121.27423 | 121.32546 | 121.28893 | +0.01470 |
+| `OF_WS` | 121.66233 | 121.66221 | 121.65964 | -0.00269 |
+| `OF_DE` | 121.35597 | 121.35597 | 121.33736 | -0.01861 |
+| `EVPI` | 0.30636 | 0.30624 | 0.32228 | +0.01592 |
+| `VSS_alpha_mu` | 0.08506 | 0.06908 | 0.04432 | -0.04074 |
+| `VSS_alpha_mu_hat` | 0.08174 | 0.03050 | 0.04843 | -0.03331 |
+
+**Read this carefully before citing VSS.** The headline objectives are stable
+to ~1e-4 relative. `EVPI` moves ~5%. But **`VSS` is not stable**: it is a small
+difference of two large, nearly equal numbers, so it inherits the full solver
+tolerance of both. `VSS_alpha_mu_hat` ranges 0.031-0.085 across configurations
+-- a factor of 2.7 -- while nothing about the model changed. At `MIPGap=1e-4`
+the tolerance on a ~121.3 objective is ~+/-0.012, which is a substantial
+fraction of a VSS of ~0.044.
+
+**Recommendation:** report `OF_DE` and `EVPI` as robust; report `VSS` with an
+explicit tolerance caveat, or tighten `MIPGap` specifically for the DE/EEVS
+pair if a sharp VSS claim is needed. Do not report VSS to more than two
+significant figures.
+
+### 15.8 The optimum is degenerate -- the most important finding for interpretation
+
+Comparing B against C isolates solver configuration alone (both post-fix, same
+data, same constraints, differing only in `FuncNonlinear` and numerics):
+
+| quantity | B (PWL) | C (outer) | difference |
+|---|---|---|---|
+| `OF_DE` | 121.355966 | 121.337359 | **1.5e-04 relative** |
+| total demand met | 2243.2463 | 2243.2463 | **0.0000** |
+| `phi` entries differing > 1e-6 | -- | -- | **37.2%** |
+| max abs difference in `phi` | -- | -- | **60.05 units** |
+| nodes with identical allocation | -- | -- | **37 of 89** |
+| `x_star` entries differing | -- | -- | 38.0% |
+| `y` entries differing | -- | -- | 37.8% |
+| `w` flips | -- | -- | 150 |
+
+The objective and the aggregate totals are pinned; **the allocation is not.**
+Over half the demand nodes (52 of 89) receive materially different allocations
+between two runs of the same model, one node by as much as 60 units, at an
+objective cost of 0.0186. All 150 `w` flips are the same node,
+`Power_node_64`, restored in every scenario under B and in none under C.
+Largest movers are concentrated in Gas (`Gas_node_15`, `Gas_node_8`,
+`Gas_node_5`).
+
+This is a **flat/degenerate optimum**, and it is a property of the model, not a
+solver defect: proportional fairness at this scarcity admits a large family of
+near-identical-value allocations.
+
+**Consequences, which should be stated in the paper:**
+
+1. Aggregate claims (`OF_DE`, `EVPI`, total met demand, per-network totals) are
+   **identified and safe**.
+2. **Node-level claims are not identified.** "Which node is most
+   scenario-sensitive", per-node dispersion/CV rankings, and per-node Jensen
+   gaps can change between solver configurations without any modeling change.
+   This retroactively explains the earlier observation (Section 14.4) that
+   Power's peak-CV node moved from `Power_node_13` to `Power_node_25`.
+3. Any node-level figure needs either a tie-breaking secondary objective (e.g.
+   lexicographic max-min, or a small regularizer) to make the allocation
+   unique, or an explicit statement that node-level detail is illustrative
+   rather than inferential.
+
+### 15.9 Where the supply actually goes
+
+Per network, supply is 1000 raw, scaled to **750** at `scarce = 0.75`; demand
+is 1000. Mean demand met over 150 scenarios, DE, final run:
+
+| network | supply @0.75 | demand | met | stranded |
+|---|---|---|---|---|
+| Gas | 750.000 | 1000.000 | 750.000 | 0.000 |
+| Power | 750.000 | 1000.000 | 750.000 | 0.000 |
+| Water | 750.000 | 1000.000 | 743.246 | **6.754** |
+| **total** | 2250.000 | 3000.000 | **2243.246** | 6.754 |
+
+Gas and Power route their full allocation. **Water strands 6.754 units (0.9%)**.
+
+This was checked properly rather than assumed, because it looks like a bug.
+It is not one:
+
+- **The solver is achieving the true maximum.** An independent max-flow
+  computation over the model's *actual* arc structure -- flow variables `x`
+  exist only on arcs with both endpoints in `N_k_d_nod`, plus first-stage
+  `x_star` arcs leaving `N_k_s` -- returns **743.246**, matching the DE
+  solution to three decimals. (An unrestricted max-flow over all of `A_k`
+  returns the full 750; the difference is the model's arc restriction, so
+  comparing against the unrestricted number is misleading.)
+- **It localizes to exactly one node.** `Water_node_11` holds 11.035 units of
+  supply and can usefully deliver only 4.281, stranding **6.754** -- the entire
+  system-wide shortfall. Its outgoing capacity is not the constraint (38.548
+  across 3 arcs); the demand reachable from it is already fully served, and
+  **Water has zero transshipment nodes** (`len(N_k_nod['Water']) == 0`), so
+  there is no route to carry its surplus to unmet demand elsewhere.
+- **Why the escape routes don't exist: the two-stage variable partition.**
+  The stage split determines which arcs carry flow at all. The first stage
+  dispatches supply, so `x_star` is defined on `i in N_k_s[k], j in N_k[k]`
+  (supply -> anything). The second stage redistributes among demand nodes, so
+  `x` is defined only on arcs with **both** endpoints in `N_k_d_nod[k]`
+  (demand -> demand). **Demand -> supply arcs therefore belong to neither
+  stage and carry no variable in either.** In the Water pocket, `40 -> 11`,
+  `48 -> 11`, `37 -> 11`, `48 -> 13` and `40 -> 13` all exist in `A_k` but are
+  structurally unusable for this reason. Combined with the absence of any
+  `11 <-> 13` arc, `Water_node_11`'s only usable exits are into the 4.281-unit
+  pocket, and its surplus cannot be handed to a neighbouring supply node.
+  `delta_plus` (the unused-supply slack) absorbs the remainder, as designed.
+- **This also shows the Section 14.1 supply-flow-balance fix earning its
+  keep.** `Water_node_13` sits in the same pocket but owns `13 -> 14`, a
+  supply -> supply arc, which that fix made usable. It therefore delivers its
+  full 1.219 while `Water_node_11` strands. Before the fix, node 13 would have
+  been trapped as well and the shortfall would have been larger.
+- **The model states this itself.** The cleanest evidence is not the max-flow
+  argument above but `delta_plus`, the unused-supply slack: across all 27
+  supply-node entries in the entire three-network system, **exactly one is
+  nonzero** -- `delta_plus_('Water_node_11', 'Water', 'Water') = 6.7537`. Any
+  audit of supply utilisation should read that variable directly.
+- **Invariant across every configuration tested.** Gas 750.0000, Power
+  750.0000, Water 743.2463 (stranded 6.7537) hold identically for the original
+  pre-fix run, the hybrid run, the `MIPGap = 1e-4` run and the certified
+  `MIPGap = 1e-6` run. It is unaffected by the interdependency fix, by
+  `FuncNonlinear`, by the numerics, and by the gap. It is a property of the
+  Water topology under the two-stage variable partition, nothing else.
+- **It predates everything done in this session.** Configurations A, B and C
+  all strand exactly 6.754, and no Water node is ever `w = 0` in any of them.
+  It is present in the originally published run. It is a property of the input
+  topology and demand data, not of the interdependency fix or solver settings.
+
+Worth a sentence in the paper: Water is the binding network, and one supply
+node's output is structurally unusable at this scarcity level.
+
+### 15.10 State at handoff / open items
+
+Backups live **outside the repo** at
+`~/.copilot/session-state/23e35144-.../files/`:
+`results_backup_2026-08-14` (original pre-fix, 507 files),
+`results_hybrid_pwl_de` (config B), `results_final_allouter_2026-08-14`
+(config C, = current `results/`).
+
+Open, in rough priority order:
+
+1. ~~**Downstream artifacts are stale.**~~ **DONE.** `jensen_gap_from_de_csv.py`
+   was re-run and `notebooks/plotter.ipynb` re-executed end-to-end against the
+   final run. `OF_A_DE_check = 121.337359` now matches `summary.json`'s
+   `OF_DE` exactly. New Jensen figures: `OF_B_expost = 126.455421`,
+   **`jensen_gap = 5.118062`** (was 126.480 / 5.124 pre-fix). The top-3 gap
+   nodes are unchanged in order: `Gas_node_9` > `Water_node_18` >
+   `Power_node_19`. All 11 figures regenerated, including the three
+   `*_jensen_gap_map.pdf` files that had been missing from the results set.
+   Updated CV maxima (these moved, so any prior dispersion figure is stale):
+
+   | network | max CV | node |
+   |---|---|---|
+   | Gas | 0.4800 | `Gas_node_8` (was `Gas_node_15`) |
+   | Power | 0.5165 | `Power_node_25` |
+   | Water | 0.5379 | `Water_node_39` |
+
+   Note these node-level peaks are exactly the quantities Section 15.8 warns
+   are not identified -- they move with solver configuration.
+2. **Decide the VSS reporting stance** (Section 15.7).
+3. **Decide whether node-level results are claimed at all** (Section 15.8).
+   This is the substantive research decision outstanding.
+4. Fix the stale comment at `tdINDP_parameters_build.py:361`.
+5. EEVS's warm-start MIP start (`ev_eevs_model.py`, ~line 326) seeds only
+   second-stage variables and is silently rejected; seed `w`, `y`, `x_star`,
+   `delta_plus` if warm starts are wanted there.
+6. `x_start` in `de_model.py` is vestigial -- written, never read. Either wire
+   it or delete it.
+7. Consider the Gurobi 13 upgrade in an isolated environment (Section 15.5),
+   keeping 3.8 intact until it reproduces these numbers.
+
+### 15.11 `MIPGap = 1e-6`: the run of record, and a correction
+
+Rerun with `STOCHFAIR_MIPGAP=1e-6` (set in `notebooks/run_all_pipelines.ipynb`
+cell 1; `gurobi_utils.DEFAULT_MIP_GAP` reads it at import time). Everything
+else unchanged.
+
+| metric | 1e-4 | **1e-6** |
+|---|---|---|
+| `OF_EV_alpha_mu` | 121.02108 | 121.02454 |
+| `OF_EV_alpha_mu_hat` | 120.98894 | 120.98909 |
+| `OF_EEVS_alpha_mu` | 121.29304 | 121.25442 |
+| `OF_EEVS_alpha_mu_hat` | 121.28893 | 121.24103 |
+| `OF_WS` | 121.65964 | 121.66306 |
+| `OF_DE` | 121.33736 | **121.34945** |
+| `EVPI` | 0.32228 | 0.31361 |
+| `VSS_alpha_mu` | 0.04432 | **0.09504** |
+| `VSS_alpha_mu_hat` | 0.04843 | **0.10842** |
+
+**DE is now certified globally optimal:** `Best objective 121.3494513985, best
+bound 121.3494513985, gap 0.0000%` in 83.3 s, 7 incumbents. No stall -- the
+earlier bound freeze was an artifact of the tight numerics, not structural.
+
+**Correction to Section 15.7.** That section argued from the 1e-4 run's
+reported bound (121.3455042) that no allocation could score above it. **That
+was wrong.** The 1e-6 run reaches 121.3494514 on identical data (`random.seed(42)`
+before `sample_alpha`, so alpha draws are reproducible). The reason: when a
+solve terminates on a nonzero `MIPGap`, Gurobi prunes nodes whose bound falls
+within the gap cutoff, so the reported `ObjBound` is **not** a valid global
+bound on termination -- the only guarantee is that the incumbent is within the
+gap of the optimum. Do not use a gap-terminated `ObjBound` to rule out better
+solutions. (The comparison against the PWL value stands: PWL's 121.35597 still
+exceeds the *certified* optimum 121.34945 by 6.5e-03, so PWL over-reports.)
+
+**VSS is now defensible.** At 1e-6 the solver tolerance is ~+/-1.2e-04 against
+a VSS of ~0.095-0.108 -- roughly 800x, versus ~4x at 1e-4. The Section 15.7
+caveat can be dropped **provided the 1e-6 numbers are the ones reported**.
+Note VSS more than doubled, confirming the 1e-4 values were tolerance-dominated
+rather than meaningful.
+
+**Cost:** 453 solves in **1015.6 s (16.9 min)**, versus 150.7 s at 1e-4. Nearly
+all of the increase is WS (849.0 s vs 38.0 s); DE grew only 65.8 -> 83.3 s.
+Well worth it -- run at 1e-6.
+
+**Warm start does not improve solutions, and now costs time.** Across all 301
+warm-started solves the objective delta versus baseline is **exactly 0.00e+00**
+(max, min and mean), and at this gap the warm start is *slower*: EEVS
+sample-mean -6.6%, WS -21.9%. `benchmark_warm_start` never calls `DE` -- there
+is no warm-started DE, and the diagnostics file contains no `DE` row. It is a
+runtime-only experiment writing `_warmstart`-suffixed files.
+
+**Downstream artifacts regenerated** against this run: `jensen_gap_expost_from_de.csv`
+(`OF_A_DE_check = 121.349451` matches `OF_DE`; `OF_B_expost = 126.471260`,
+**`jensen_gap = 5.121808`**) and all 11 figures including the three
+`*_jensen_gap_map.pdf`.
+
+**Supply utilisation is unchanged at 1e-6** -- see Section 15.9, which is the
+full treatment. Re-verified against this run: Gas 750.0000, Power 750.0000,
+Water 743.2463, with `delta_plus_('Water_node_11', 'Water', 'Water') = 6.7537`
+the single nonzero unused-supply entry in the whole system, identical to the
+1e-4 run to four decimals. The shortfall is not a solver artifact and does not
+respond to the gap; it is the two-stage variable partition plus the Water
+pocket topology.

@@ -1,5 +1,6 @@
 """Deterministic Equivalent (DE) model: single model spanning all scenarios."""
 
+import json
 import math
 
 import numpy as np
@@ -9,10 +10,15 @@ from gurobi_utils import configure_common_gurobi_params, save_results_csv, colle
 from paths import results_path, solver_log_path
 
 
-def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, x_start = {}, diagnostics=None):
+def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, L_k, v, h, p, M_plus, M_minus, alpha, beta, gamma, g, f, q, c, u, N_k_d, N_k_s, N_k_nod, N_k_d_nod, scarce, rho, x_start = {}, diagnostics=None, mip_start=None, func_nonlinear=1, mip_gap=None, log_suffix=''):
     """`diagnostics`: optional list; if provided, a solve-diagnostics record
     for this (single, all-scenarios) DE solve is appended to it - see
     `run_experiments.write_solve_diagnostics_md`.
+
+    `mip_start`: optional {varName: value} dict (as written to the
+    `DE_solution_*.json` dump below) used to seed this solve with a known
+    incumbent. Intended for handing the piecewise-linear DE's certified-optimal
+    allocation to the outer-approximation DE, whose own bound is weak.
     """
 
     print(f'Deterministic equivalent')
@@ -26,7 +32,7 @@ def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
 
     utility_type = 'power'
     pieces_length = 1
-    configure_common_gurobi_params(model, log_file=solver_log_path(f'DE_scarce_{scarce}.log'))
+    configure_common_gurobi_params(model, log_file=solver_log_path(f'DE_scarce_{scarce}{log_suffix}.log'), func_nonlinear=func_nonlinear, mip_gap=mip_gap)
 
     '''
     first stage variables
@@ -91,8 +97,10 @@ def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
     for k in K:
         for k_tilde in K:
             for j in N_k[k_tilde]:
-                if (i,j,k,k_tilde) in gamma.keys():
-                    model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) >= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
+                dep_nodes = [i_dep for i_dep in N_k[k] if (i_dep,j,k,k_tilde) in gamma.keys()]
+                if dep_nodes:
+                    model.addConstr(quicksum(w[(i_dep,k)]*gamma[(i_dep,j,k,k_tilde)] for i_dep in dep_nodes) - w[(j,k_tilde)] >= 0,
+                                    name = 'interdependent_functionality_geq_'+str((k,k_tilde,j)))
 
 
 
@@ -140,6 +148,14 @@ def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
                     model.addConstr(quicksum(x[(i,j,k,l,omega)] for j in N_k_d_nod[k] if (i,j) in A_k[k]) - (quicksum(x[(j,i,k,l,omega)] for j in N_k_d_nod[k] if (j,i) in A_k[k]) + quicksum(x_star[(j,i,k,l)] for j in N_k_s[k] if (j,i) in A_k[k])) == 0, name = 'transshipment_flow_balance_'+str((i,k,l,omega)))
 
     model.update()
+
+    if mip_start:
+        applied = 0
+        for var in model.getVars():
+            if var.VarName in mip_start:
+                var.Start = mip_start[var.VarName]
+                applied += 1
+        print(f'DE MIP start: seeded {applied}/{model.NumVars} variables from a previous solution')
 
     model.optimize()
 
@@ -224,5 +240,9 @@ def DE(b, OMEGA, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A_prime_k, 
             file.write(f'{x_start}')
 
     x_star_DE = {var.varName:var.x for var in model.getVars()}
+
+    with open(results_path(f'DE_solution_scarce_{scarce}_num_scenarios_{len(OMEGA)}.json'), 'w') as fh:
+        json.dump(x_star_DE, fh)
+
     OF_DE = sum(rho[omega]*alpha[(i,k,l,omega)]*math.log(x_star_DE["phi_"+str((i,k,l,omega))]) if x_star_DE["phi_"+str((i,k,l,omega))] > 0 else rho[omega]*alpha[(i,k,l,omega)]*math.log(1e-9) for k in K for l in L_k[k] for i in N_k_d[k] for omega in OMEGA)
     return x_star_DE, OF_DE

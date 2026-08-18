@@ -17,22 +17,61 @@ _STATUS_NAMES = {
     11: 'INTERRUPTED', 14: 'INPROGRESS', 15: 'USER_OBJ_LIMIT',
 }
 
+#: Default relative MIP gap for every model in the pipeline.
+#:
+#: Override for a whole run without editing code by setting the environment
+#: variable ``STOCHFAIR_MIPGAP`` before importing this module, e.g. from a
+#: notebook cell::
+#:
+#:     import os; os.environ['STOCHFAIR_MIPGAP'] = '1e-6'
+#:
+#: The value actually used is recorded per model in ``summary.json``'s
+#: ``solver_config`` block (see :func:`solver_config_snapshot`), so a run
+#: always documents its own gap regardless of how it was set.
+DEFAULT_MIP_GAP = float(os.environ.get('STOCHFAIR_MIPGAP', 1e-4))
 
-def configure_common_gurobi_params(model, num_focus=3, output_flag=1, log_file=None):
+
+def configure_common_gurobi_params(model, num_focus=0, output_flag=1, log_file=None, func_nonlinear=1, mip_gap=None,
+                                   integrality_focus=0, int_feas_tol=1e-7):
     """Apply the Gurobi parameter settings shared by all tdINDP models.
 
     If `log_file` is given, the full Gurobi solver log for this solve is written
     there. Any existing file at that path is removed first, because Gurobi
     appends to (rather than overwrites) an existing LogFile across runs -- so
     each per-solve log stays scoped to just the current solve.
+
+    `func_nonlinear` selects how the ln(phi) general constraints are handled.
+    All models now use 1 (dynamic outer approximation), which keeps every model
+    small -- the static piecewise-linear expansion otherwise adds ~20k columns
+    and an SOS2 set per solve, and was the cause of the EEVS/WS solves grinding
+    for hours.
+
+    `mip_gap` is `DEFAULT_MIP_GAP` (1e-4 unless the `STOCHFAIR_MIPGAP`
+    environment variable overrides it), matching Gurobi's own default but set
+    explicitly so the value is recorded in each run's solver-config snapshot
+    rather than being implicit.
+
+    The numerical settings were previously NumericFocus=3, IntegralityFocus=1
+    and IntFeasTol=1e-9. That combination demanded integrality feasibility six
+    orders of magnitude tighter than the accuracy of the model's own nonlinear
+    constraints: under the piecewise-linear expansion every solve reported
+    `max constraint violation ~5e-04 exceeds tolerance`. With func_nonlinear=1
+    the ln(phi) constraints are handled exactly, so that conflict is gone and
+    the conservative (expensive) numerics are no longer justified. IntFeasTol
+    is still 100x tighter than Gurobi's 1e-5 default.
     """
     model.setParam('OutputFlag', output_flag)
+    model.setParam('FuncNonlinear', func_nonlinear)
     model.setParam('FuncPieceRatio', -1)
-    model.setParam('FuncPieceError', 1e-4)  # tightens the piecewise-linear approximation of ln(phi) beyond the default
+    model.setParam('FuncPieceError', 1e-4)  # only consulted when func_nonlinear=0
     model.setParam('DualReductions', 0)
     model.setParam('NumericFocus', num_focus)
-    model.setParam('IntegralityFocus', 1)
-    model.setParam('IntFeasTol', 1e-9)
+    model.setParam('IntegralityFocus', integrality_focus)
+    model.setParam('IntFeasTol', int_feas_tol)
+    if mip_gap is None:
+        mip_gap = DEFAULT_MIP_GAP
+    if mip_gap is not None:
+        model.setParam('MIPGap', mip_gap)
     if log_file is not None:
         if os.path.exists(log_file):
             os.remove(log_file)
@@ -98,8 +137,29 @@ def collect_solve_diagnostics(model, label, scenario=None):
         'num_bin_vars': model.NumBinVars,
         'num_constrs': model.NumConstrs,
         'work_units': work_units,
+        'solver_config': solver_config_snapshot(model),
         'flags': ', '.join(flags) if flags else '',
     }
+
+
+def solver_config_snapshot(model):
+    """The solver settings this model was actually solved under.
+
+    Recorded per solve so a results file on disk is self-describing: the
+    ln(phi) treatment (`FuncNonlinear`) and the numerical tolerances have both
+    changed during this project and produce materially different runtimes, so
+    "which configuration produced this number" must not depend on memory or on
+    what happens to be checked into `gurobi_utils` today.
+    """
+    names = ('FuncNonlinear', 'FuncPieceError', 'NumericFocus',
+             'IntegralityFocus', 'IntFeasTol', 'MIPGap')
+    snapshot = {}
+    for name in names:
+        try:
+            snapshot[name] = model.getParamInfo(name)[2]  # current value
+        except Exception:
+            snapshot[name] = None
+    return snapshot
 
 
 def compute_row_statistics(row):

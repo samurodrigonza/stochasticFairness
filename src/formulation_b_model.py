@@ -244,8 +244,10 @@ def solve_formulation_b(b, N, A, T, S, L, R, K, N_star_k, N_k, N_prime_k, A_k, A
     for k in K:
         for k_tilde in K:
             for j in N_k[k_tilde]:
-                if (i,j,k,k_tilde) in gamma.keys():
-                    model.addConstr(quicksum(w[(i,k)]*gamma[(i,j,k,k_tilde)] for i in N_k[k]) >= w[(j,k_tilde)], name = 'interdependent_functionality_'+str((k,k_tilde,j)))
+                dep_nodes = [i_dep for i_dep in N_k[k] if (i_dep,j,k,k_tilde) in gamma.keys()]
+                if dep_nodes:
+                    model.addConstr(quicksum(w[(i_dep,k)]*gamma[(i_dep,j,k,k_tilde)] for i_dep in dep_nodes) - w[(j,k_tilde)] >= 0,
+                                    name = 'interdependent_functionality_geq_'+str((k,k_tilde,j)))
 
     for k in K:
         for (i,j) in A_k[k]:
