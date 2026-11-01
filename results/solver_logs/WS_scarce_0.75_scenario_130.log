@@ -1,0 +1,81 @@
+
+Gurobi 11.0.3 (win64) logging started Fri Aug 14 19:42:29 2026
+
+Set parameter LogFile to value "C:\Projects\Random personal\Stochastic fairness 2026\stochasticFairness\results\solver_logs\WS_scarce_0.75_scenario_130.log"
+Gurobi Optimizer version 11.0.3 build v11.0.3rc0 (win64 - Windows 11.0 (22631.2))
+
+CPU model: Intel(R) Core(TM) Ultra 7 165H, instruction set [SSE2|AVX|AVX2]
+Thread count: 16 physical cores, 22 logical processors, using up to 22 threads
+
+Optimize a model with 1563 rows, 1354 columns and 3612 nonzeros
+Model fingerprint: 0xef5cbd70
+Model has 89 general constraints
+Variable types: 574 continuous, 780 integer (780 binary)
+Coefficient statistics:
+  Matrix range     [4e-02, 4e+02]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [2e-02, 3e+02]
+  RHS range        [2e-01, 5e+02]
+Presolve removed 280 rows and 129 columns
+Presolve time: 0.02s
+Presolved: 1728 rows, 1226 columns, 3820 nonzeros
+Presolved model has 89 nonlinear constraint(s)
+
+Solving non-convex MINLP
+
+Variable types: 446 continuous, 780 integer (780 binary)
+
+Root relaxation: objective 1.197680e+02, 1269 iterations, 0.01 seconds (0.01 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0  119.76803    0   30          -  119.76803      -     -    0s
+H    0     0                     117.4576894  119.76803  1.97%     -    0s
+     0     0  119.23244    0   34  117.45769  119.23244  1.51%     -    0s
+H    0     0                     118.0664818  119.23244  0.99%     -    0s
+     0     0  118.68815    0   34  118.06648  118.68815  0.53%     -    0s
+H    0     0                     118.1845575  118.68815  0.43%     -    0s
+H    0     0                     118.3431829  118.68815  0.29%     -    0s
+     0     0  118.48586    0   33  118.34318  118.48586  0.12%     -    0s
+     0     0  118.48398    0   32  118.34318  118.48398  0.12%     -    0s
+     0     0  118.43487    0   31  118.34318  118.43487  0.08%     -    0s
+H    0     0                     118.3822383  118.43487  0.04%     -    0s
+     0     0  118.41867    0   32  118.38224  118.41867  0.03%     -    0s
+     0     0  118.41867    0   33  118.38224  118.41867  0.03%     -    0s
+     0     0  118.41866    0   32  118.38224  118.41866  0.03%     -    0s
+H    0     0                     118.4049113  118.41866  0.01%     -    0s
+     0     0  118.41284    0   31  118.40491  118.41284  0.01%     -    0s
+     0     0  118.41283    0   31  118.40491  118.41283  0.01%     -    0s
+H    0     0                     118.4075205  118.41283  0.00%     -    0s
+     0     0  118.41085    0   30  118.40752  118.41085  0.00%     -    0s
+     0     0  118.41085    0   32  118.40752  118.41085  0.00%     -    0s
+     0     0  118.41045    0   29  118.40752  118.41045  0.00%     -    0s
+H    0     0                     118.4099383  118.41045  0.00%     -    0s
+     0     0  118.41028    0   29  118.40994  118.41028  0.00%     -    0s
+     0     0  118.41028    0   29  118.40994  118.41028  0.00%     -    0s
+H    0     0                     118.4099698  118.41028  0.00%     -    0s
+H    0     0                     118.4100293  118.41028  0.00%     -    0s
+     0     0  118.41028    0   38  118.41003  118.41028  0.00%     -    0s
+     0     0  118.41028    0   37  118.41003  118.41028  0.00%     -    0s
+     0     0  118.41028    0   31  118.41003  118.41028  0.00%     -    0s
+     0     0  118.41028    0   33  118.41003  118.41028  0.00%     -    0s
+     0     0  118.41028    0   31  118.41003  118.41028  0.00%     -    0s
+     0     0  118.41028    0   29  118.41003  118.41028  0.00%     -    0s
+     0     0  118.41028    0   29  118.41003  118.41028  0.00%     -    0s
+H    0     0                     118.4100306  118.41028  0.00%     -    0s
+     0     2  118.41028    0   29  118.41003  118.41028  0.00%     -    0s
+H 3471  1947                     118.4100310  118.41019  0.00%   3.8    1s
+
+Cutting planes:
+  Implied bound: 1
+  MIR: 2
+  Flow cover: 2
+
+Explored 3500 nodes (17701 simplex iterations) in 2.08 seconds (0.60 work units)
+Thread count was 22 (of 22 available processors)
+
+Solution count 10: 118.41 118.41 118.41 ... 118.185
+
+Optimal solution found (tolerance 1.00e-06)
+Best objective 1.184100310072e+02, best bound 1.184101494119e+02, gap 0.0001%

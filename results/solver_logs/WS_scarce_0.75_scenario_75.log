@@ -1,0 +1,76 @@
+
+Gurobi 11.0.3 (win64) logging started Fri Aug 14 19:36:45 2026
+
+Set parameter LogFile to value "C:\Projects\Random personal\Stochastic fairness 2026\stochasticFairness\results\solver_logs\WS_scarce_0.75_scenario_75.log"
+Gurobi Optimizer version 11.0.3 build v11.0.3rc0 (win64 - Windows 11.0 (22631.2))
+
+CPU model: Intel(R) Core(TM) Ultra 7 165H, instruction set [SSE2|AVX|AVX2]
+Thread count: 16 physical cores, 22 logical processors, using up to 22 threads
+
+Optimize a model with 1563 rows, 1354 columns and 3612 nonzeros
+Model fingerprint: 0xac548c4e
+Model has 89 general constraints
+Variable types: 574 continuous, 780 integer (780 binary)
+Coefficient statistics:
+  Matrix range     [5e-03, 4e+02]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [2e-02, 3e+02]
+  RHS range        [2e-01, 5e+02]
+Presolve removed 280 rows and 129 columns
+Presolve time: 0.01s
+Presolved: 1728 rows, 1226 columns, 3820 nonzeros
+Presolved model has 89 nonlinear constraint(s)
+
+Solving non-convex MINLP
+
+Variable types: 446 continuous, 780 integer (780 binary)
+
+Root relaxation: objective 1.234895e+02, 1343 iterations, 0.02 seconds (0.01 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0  123.48950    0   28          -  123.48950      -     -    0s
+H    0     0                     121.5796261  123.48950  1.57%     -    0s
+     0     0  122.94798    0   40  121.57963  122.94798  1.13%     -    0s
+H    0     0                     121.9078094  122.94798  0.85%     -    0s
+     0     0  122.52331    0   41  121.90781  122.52331  0.50%     -    0s
+H    0     0                     122.2525820  122.52331  0.22%     -    0s
+     0     0  122.52331    0   38  122.25258  122.52331  0.22%     -    0s
+     0     0  122.33629    0   45  122.25258  122.33629  0.07%     -    0s
+     0     0  122.33552    0   42  122.25258  122.33552  0.07%     -    0s
+     0     0  122.33522    0   42  122.25258  122.33522  0.07%     -    0s
+     0     0  122.33344    0   42  122.25258  122.33344  0.07%     -    0s
+     0     0  122.28683    0   43  122.25258  122.28683  0.03%     -    0s
+     0     0  122.28678    0   43  122.25258  122.28678  0.03%     -    0s
+     0     0  122.28669    0   41  122.25258  122.28669  0.03%     -    0s
+     0     0  122.27130    0   38  122.25258  122.27130  0.02%     -    0s
+     0     0  122.27130    0   34  122.25258  122.27130  0.02%     -    0s
+     0     0  122.27127    0   34  122.25258  122.27127  0.02%     -    0s
+H    0     0                     122.2617531  122.27127  0.01%     -    0s
+H    0     0                     122.2653310  122.27127  0.00%     -    0s
+     0     0  122.26700    0   34  122.26533  122.26700  0.00%     -    0s
+     0     0  122.26700    0   34  122.26533  122.26700  0.00%     -    0s
+     0     0  122.26594    0   35  122.26533  122.26594  0.00%     -    0s
+     0     0  122.26562    0   35  122.26533  122.26562  0.00%     -    0s
+     0     0  122.26558    0   34  122.26533  122.26558  0.00%     -    0s
+     0     0  122.26558    0   34  122.26533  122.26558  0.00%     -    0s
+     0     0  122.26558    0   34  122.26533  122.26558  0.00%     -    0s
+     0     0  122.26558    0   34  122.26533  122.26558  0.00%     -    0s
+H    0     0                     122.2653310  122.26558  0.00%     -    0s
+     0     0  122.26558    0   48  122.26533  122.26558  0.00%     -    0s
+     0     0  122.26558    0   48  122.26533  122.26558  0.00%     -    0s
+     0     0  122.26558    0   39  122.26533  122.26558  0.00%     -    0s
+     0     0  122.26558    0   39  122.26533  122.26558  0.00%     -    0s
+     0     2  122.26558    0   39  122.26533  122.26558  0.00%     -    0s
+* 5212  3929             114     122.2653336  122.26546  0.00%   3.2    2s
+* 5215  3821             115     122.2653337  122.26546  0.00%   3.2    2s
+H 7873  4802                     122.2653358  122.26546  0.00%   3.1    3s
+
+Explored 9373 nodes (32836 simplex iterations) in 3.14 seconds (0.72 work units)
+Thread count was 22 (of 22 available processors)
+
+Solution count 9: 122.265 122.265 122.265 ... 121.58
+
+Optimal solution found (tolerance 1.00e-06)
+Best objective 1.222653357693e+02, best bound 1.222654577782e+02, gap 0.0001%

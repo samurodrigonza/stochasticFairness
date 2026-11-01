@@ -1,0 +1,66 @@
+{
+  "scarce": 0.75,
+  "utility_type": "power",
+  "num_scenarios": 150,
+  "same_probs": true,
+  "pieces_length": 1,
+  "OF_EV_alpha_mu": 121.02454096708414,
+  "OF_EV_alpha_mu_hat": 120.9890906251476,
+  "OF_EEVS_alpha_mu": 121.25441580028877,
+  "OF_EEVS_alpha_mu_hat": 121.24102965302687,
+  "OF_WS": 121.66305812081414,
+  "OF_DE": 121.34945128384796,
+  "EVPI": 0.3136068369661871,
+  "VSS_alpha_mu": 0.09503548355918667,
+  "VSS_alpha_mu_hat": 0.10842163082108414,
+  "solver_config": {
+    "EV_population_mean": {
+      "FuncNonlinear": 1,
+      "FuncPieceError": 0.0001,
+      "NumericFocus": 0,
+      "IntegralityFocus": 0,
+      "IntFeasTol": 1e-07,
+      "MIPGap": 1e-06
+    },
+    "EEVS_population_mean": {
+      "FuncNonlinear": 1,
+      "FuncPieceError": 0.0001,
+      "NumericFocus": 0,
+      "IntegralityFocus": 0,
+      "IntFeasTol": 1e-07,
+      "MIPGap": 1e-06
+    },
+    "EV_sample_mean": {
+      "FuncNonlinear": 1,
+      "FuncPieceError": 0.0001,
+      "NumericFocus": 0,
+      "IntegralityFocus": 0,
+      "IntFeasTol": 1e-07,
+      "MIPGap": 1e-06
+    },
+    "EEVS_sample_mean": {
+      "FuncNonlinear": 1,
+      "FuncPieceError": 0.0001,
+      "NumericFocus": 0,
+      "IntegralityFocus": 0,
+      "IntFeasTol": 1e-07,
+      "MIPGap": 1e-06
+    },
+    "WS": {
+      "FuncNonlinear": 1,
+      "FuncPieceError": 0.0001,
+      "NumericFocus": 0,
+      "IntegralityFocus": 0,
+      "IntFeasTol": 1e-07,
+      "MIPGap": 1e-06
+    },
+    "DE": {
+      "FuncNonlinear": 1,
+      "FuncPieceError": 0.0001,
+      "NumericFocus": 0,
+      "IntegralityFocus": 0,
+      "IntFeasTol": 1e-07,
+      "MIPGap": 1e-06
+    }
+  }
+}
