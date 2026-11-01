@@ -1,0 +1,60 @@
+
+Gurobi 11.0.3 (win64) logging started Fri Aug 14 19:29:08 2026
+
+Set parameter LogFile to value "C:\Projects\Random personal\Stochastic fairness 2026\stochasticFairness\results\solver_logs\EEVS_scarce_0.75_population_mean_scenario_69.log"
+Gurobi Optimizer version 11.0.3 build v11.0.3rc0 (win64 - Windows 11.0 (22631.2))
+
+CPU model: Intel(R) Core(TM) Ultra 7 165H, instruction set [SSE2|AVX|AVX2]
+Thread count: 16 physical cores, 22 logical processors, using up to 22 threads
+
+Optimize a model with 2397 rows, 1354 columns and 4446 nonzeros
+Model fingerprint: 0x5227c7fb
+Model has 89 general constraints
+Variable types: 574 continuous, 780 integer (780 binary)
+Coefficient statistics:
+  Matrix range     [1e-02, 4e+02]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [2e-02, 3e+02]
+  RHS range        [1e-06, 5e+02]
+Presolve removed 2230 rows and 944 columns
+Presolve time: 0.00s
+Presolved: 602 rows, 411 columns, 1385 nonzeros
+Presolved model has 87 nonlinear constraint(s)
+
+Solving non-convex MINLP
+
+Variable types: 331 continuous, 80 integer (80 binary)
+
+Root relaxation: objective 1.275775e+02, 282 iterations, 0.00 seconds (0.00 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0  127.57748    0   18          -  127.57748      -     -    0s
+     0     0  127.50690    0   16          -  127.50690      -     -    0s
+H    0     0                     127.3185820  127.50690  0.15%     -    0s
+     0     0  127.40026    0   17  127.31858  127.40026  0.06%     -    0s
+H    0     0                     127.3221917  127.40026  0.06%     -    0s
+     0     0  127.36267    0   17  127.32219  127.36267  0.03%     -    0s
+H    0     0                     127.3455705  127.36267  0.01%     -    0s
+     0     0  127.36262    0   17  127.34557  127.36262  0.01%     -    0s
+     0     0  127.35444    0   16  127.34557  127.35444  0.01%     -    0s
+     0     0  127.35444    0   17  127.34557  127.35444  0.01%     -    0s
+     0     0  127.35444    0   17  127.34557  127.35444  0.01%     -    0s
+     0     0  127.35394    0   17  127.34557  127.35394  0.01%     -    0s
+     0     0  127.35365    0   17  127.34557  127.35365  0.01%     -    0s
+     0     0  127.35351    0   17  127.34557  127.35351  0.01%     -    0s
+     0     0  127.35349    0   16  127.34557  127.35349  0.01%     -    0s
+     0     0  127.35349    0   16  127.34557  127.35349  0.01%     -    0s
+H    0     0                     127.3533068  127.35349  0.00%     -    0s
+H    0     0                     127.3533166  127.35349  0.00%     -    0s
+     0     2  127.35349    0   15  127.35332  127.35349  0.00%     -    0s
+
+Explored 23 nodes (426 simplex iterations) in 0.17 seconds (0.04 work units)
+Thread count was 22 (of 22 available processors)
+
+Solution count 5: 127.353 127.353 127.346 ... 127.319
+
+Optimal solution found (tolerance 1.00e-06)
+Warning: max constraint violation (1.0000e-06) exceeds tolerance
+Best objective 1.273533165747e+02, best bound 1.273534406504e+02, gap 0.0001%

@@ -1,0 +1,75 @@
+
+Gurobi 11.0.3 (win64) logging started Fri Aug 14 19:53:32 2026
+
+Set parameter LogFile to value "C:\Projects\Random personal\Stochastic fairness 2026\stochasticFairness\results\solver_logs\WS_scarce_0.75_scenario_41_warmstart.log"
+Gurobi Optimizer version 11.0.3 build v11.0.3rc0 (win64 - Windows 11.0 (22631.2))
+
+CPU model: Intel(R) Core(TM) Ultra 7 165H, instruction set [SSE2|AVX|AVX2]
+Thread count: 16 physical cores, 22 logical processors, using up to 22 threads
+
+Optimize a model with 1563 rows, 1354 columns and 3612 nonzeros
+Model fingerprint: 0x0f4c6433
+Model has 89 general constraints
+Variable types: 574 continuous, 780 integer (780 binary)
+Coefficient statistics:
+  Matrix range     [1e-03, 4e+02]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [2e-02, 3e+02]
+  RHS range        [2e-01, 5e+02]
+
+User MIP start produced solution with objective 115.539 (0.04s)
+Loaded user MIP start with objective 115.539
+
+Presolve removed 280 rows and 129 columns
+Presolve time: 0.01s
+Presolved: 1728 rows, 1226 columns, 3820 nonzeros
+Presolved model has 89 nonlinear constraint(s)
+
+Solving non-convex MINLP
+
+Variable types: 446 continuous, 780 integer (780 binary)
+
+Root relaxation: objective 1.194365e+02, 1314 iterations, 0.01 seconds (0.01 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0  119.43651    0   28  115.53929  119.43651  3.37%     -    0s
+H    0     0                     117.6684813  119.43651  1.50%     -    0s
+H    0     0                     118.5227431  119.43651  0.77%     -    0s
+     0     0  119.05867    0   32  118.52274  119.05867  0.45%     -    0s
+     0     0  118.83607    0   35  118.52274  118.83607  0.26%     -    0s
+     0     0  118.71456    0   43  118.52274  118.71456  0.16%     -    0s
+     0     0  118.71440    0   41  118.52274  118.71440  0.16%     -    0s
+     0     0  118.65335    0   43  118.52274  118.65335  0.11%     -    0s
+     0     0  118.65335    0   41  118.52274  118.65335  0.11%     -    0s
+     0     0  118.65319    0   41  118.52274  118.65319  0.11%     -    0s
+     0     0  118.62898    0   40  118.52274  118.62898  0.09%     -    0s
+     0     0  118.62868    0   40  118.52274  118.62868  0.09%     -    0s
+     0     0  118.61001    0   39  118.52274  118.61001  0.07%     -    0s
+     0     0  118.61001    0   35  118.52274  118.61001  0.07%     -    0s
+H    0     0                     118.5986352  118.61001  0.01%     -    0s
+H    0     0                     118.6022151  118.61001  0.01%     -    0s
+     0     0  118.60472    0   37  118.60222  118.60472  0.00%     -    0s
+     0     0  118.60472    0   37  118.60222  118.60472  0.00%     -    0s
+     0     0  118.60288    0   33  118.60222  118.60288  0.00%     -    0s
+     0     0  118.60262    0   35  118.60222  118.60262  0.00%     -    0s
+H    0     0                     118.6022154  118.60262  0.00%     -    0s
+     0     0  118.60259    0   35  118.60222  118.60259  0.00%     -    0s
+     0     0  118.60258    0   35  118.60222  118.60258  0.00%     -    0s
+     0     0  118.60258    0   35  118.60222  118.60258  0.00%     -    0s
+     0     0  118.60258    0   42  118.60222  118.60258  0.00%     -    0s
+     0     0  118.60258    0   40  118.60222  118.60258  0.00%     -    0s
+     0     0  118.60258    0   38  118.60222  118.60258  0.00%     -    0s
+     0     0  118.60258    0   38  118.60222  118.60258  0.00%     -    0s
+     0     2  118.60258    0   38  118.60222  118.60258  0.00%     -    0s
+
+Explored 4767 nodes (17522 simplex iterations) in 2.10 seconds (0.58 work units)
+Thread count was 22 (of 22 available processors)
+
+Solution count 6: 118.602 118.599 118.523 ... 115.539
+
+Optimal solution found (tolerance 1.00e-06)
+Warning: max constraint violation (1.9936e-06) exceeds tolerance
+Warning: max bound violation (1.2268e-06) exceeds tolerance
+Best objective 1.186022154132e+02, best bound 1.186023262005e+02, gap 0.0001%

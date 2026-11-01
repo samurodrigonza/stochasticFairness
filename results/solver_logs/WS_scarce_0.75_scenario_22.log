@@ -1,0 +1,78 @@
+
+Gurobi 11.0.3 (win64) logging started Fri Aug 14 19:32:27 2026
+
+Set parameter LogFile to value "C:\Projects\Random personal\Stochastic fairness 2026\stochasticFairness\results\solver_logs\WS_scarce_0.75_scenario_22.log"
+Gurobi Optimizer version 11.0.3 build v11.0.3rc0 (win64 - Windows 11.0 (22631.2))
+
+CPU model: Intel(R) Core(TM) Ultra 7 165H, instruction set [SSE2|AVX|AVX2]
+Thread count: 16 physical cores, 22 logical processors, using up to 22 threads
+
+Optimize a model with 1563 rows, 1354 columns and 3612 nonzeros
+Model fingerprint: 0xe2f8767c
+Model has 89 general constraints
+Variable types: 574 continuous, 780 integer (780 binary)
+Coefficient statistics:
+  Matrix range     [1e-02, 4e+02]
+  Objective range  [1e+00, 1e+00]
+  Bounds range     [2e-02, 3e+02]
+  RHS range        [2e-01, 5e+02]
+Presolve removed 280 rows and 129 columns
+Presolve time: 0.01s
+Presolved: 1728 rows, 1226 columns, 3820 nonzeros
+Presolved model has 89 nonlinear constraint(s)
+
+Solving non-convex MINLP
+
+Variable types: 446 continuous, 780 integer (780 binary)
+
+Root relaxation: objective 1.263292e+02, 1315 iterations, 0.01 seconds (0.01 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0  126.32921    0   28          -  126.32921      -     -    0s
+H    0     0                     124.3825821  126.32921  1.57%     -    0s
+     0     0  125.84364    0   39  124.38258  125.84364  1.17%     -    0s
+H    0     0                     124.6763995  125.84364  0.94%     -    0s
+     0     0  125.39800    0   41  124.67640  125.39800  0.58%     -    0s
+H    0     0                     125.0954837  125.39800  0.24%     -    0s
+     0     0  125.39800    0   36  125.09548  125.39800  0.24%     -    0s
+     0     0  125.22228    0   39  125.09548  125.22228  0.10%     -    0s
+     0     0  125.15712    0   38  125.09548  125.15712  0.05%     -    0s
+     0     0  125.15417    0   38  125.09548  125.15417  0.05%     -    0s
+     0     0  125.12744    0   41  125.09548  125.12744  0.03%     -    0s
+     0     0  125.12699    0   38  125.09548  125.12699  0.03%     -    0s
+     0     0  125.11458    0   39  125.09548  125.11458  0.02%     -    0s
+     0     0  125.11458    0   35  125.09548  125.11458  0.02%     -    0s
+H    0     0                     125.1093414  125.11458  0.00%     -    0s
+     0     0  125.11146    0   35  125.10934  125.11146  0.00%     -    0s
+H    0     0                     125.1100771  125.11146  0.00%     -    0s
+     0     0  125.11109    0   35  125.11008  125.11109  0.00%     -    0s
+H    0     0                     125.1104176  125.11109  0.00%     -    0s
+     0     0  125.11109    0   35  125.11042  125.11109  0.00%     -    0s
+     0     0  125.11097    0   35  125.11042  125.11097  0.00%     -    0s
+H    0     0                     125.1104811  125.11097  0.00%     -    0s
+     0     0  125.11096    0   35  125.11048  125.11096  0.00%     -    0s
+     0     0  125.11096    0   35  125.11048  125.11096  0.00%     -    0s
+H    0     0                     125.1105241  125.11096  0.00%     -    0s
+H    0     0                     125.1105740  125.11096  0.00%     -    0s
+H    0     0                     125.1106850  125.11096  0.00%     -    0s
+H    0     0                     125.1106856  125.11096  0.00%     -    0s
+     0     0  125.11096    0   35  125.11069  125.11096  0.00%     -    0s
+     0     0  125.11096    0   35  125.11069  125.11096  0.00%     -    0s
+     0     2  125.11096    0   35  125.11069  125.11096  0.00%     -    0s
+* 5073  3348              97     125.1106867  125.11081  0.00%   2.9    1s
+
+Cutting planes:
+  MIR: 2
+  Flow cover: 1
+  Relax-and-lift: 2
+
+Explored 5726 nodes (20165 simplex iterations) in 1.75 seconds (0.53 work units)
+Thread count was 22 (of 22 available processors)
+
+Solution count 10: 125.111 125.111 125.111 ... 124.676
+
+Optimal solution found (tolerance 1.00e-06)
+Warning: max bound violation (1.0889e-06) exceeds tolerance
+Best objective 1.251106867499e+02, best bound 1.251108114701e+02, gap 0.0001%
